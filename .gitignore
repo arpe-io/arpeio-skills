@@ -1,0 +1,21 @@
+# Local agent / editor state
+.claude/settings.local.json
+.claude/plans/
+CLAUDE.local.md
+.vscode/
+.idea/
+.DS_Store
+
+# Working artefacts: plans, specs, notes, scratch (keep out of the public repo)
+plans/
+specs/
+notes/
+scratch/
+tmp/
+docs/superpowers/
+*.plan.md
+*.local.md
+
+# Eval / smoke-test outputs
+evals/**/results/
+*.log
