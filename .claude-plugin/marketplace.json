@@ -13,7 +13,35 @@
       "source": "./plugins/fastbcp",
       "description": "Build, explain and troubleshoot FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more to CSV/Parquet/JSON/Excel, locally or to S3, Azure, GCS and OneLake.",
       "category": "data",
-      "keywords": ["fastbcp", "export", "bulk", "parquet", "csv", "etl", "sql-server", "postgresql", "oracle"]
+      "keywords": [
+        "fastbcp",
+        "export",
+        "bulk",
+        "parquet",
+        "csv",
+        "etl",
+        "sql-server",
+        "postgresql",
+        "oracle"
+      ]
+    },
+    {
+      "name": "fasttransfer",
+      "source": "./plugins/fasttransfer",
+      "description": "Build, explain and troubleshoot FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza and DuckDB, and CSV/Parquet/JSON file imports.",
+      "category": "data",
+      "keywords": [
+        "fasttransfer",
+        "transfer",
+        "migration",
+        "bulk",
+        "etl",
+        "sql-server",
+        "postgresql",
+        "oracle",
+        "csv",
+        "parquet"
+      ]
     }
   ]
 }

@@ -11,7 +11,7 @@ use a product correctly: which parameters exist, which options fit together, and
 | Product | Skill | What it does | Status |
 |---|---|---|---|
 | [FastBCP](https://fastbcp-docs.arpe.io) | [`fastbcp`](plugins/fastbcp/skills/fastbcp/SKILL.md) | Builds, explains and troubleshoots FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more to CSV / Parquet / JSON / Excel, locally or to S3, Azure, GCS, OneLake | Available |
-| FastTransfer | `fasttransfer` | Database-to-database bulk transfer | Planned |
+| [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, DuckDB, and CSV / Parquet / JSON file imports | Available |
 | MigratorXpress | `migratorxpress` | Database migration | Planned |
 | LakeXpress | `lakexpress` | Database to data lake | Planned |
 | arpe.io ADBC drivers | `arpeio-adbc-drivers` | arpe.io ADBC FastDrivers | Planned |
@@ -22,6 +22,7 @@ use a product correctly: which parameters exist, which options fit together, and
 
 ```
 /plugin install fastbcp --marketplace arpe-io/arpeio-skills
+/plugin install fasttransfer --marketplace arpe-io/arpeio-skills
 ```
 
 Or in two steps:
@@ -29,9 +30,11 @@ Or in two steps:
 ```
 /plugin marketplace add arpe-io/arpeio-skills
 /plugin install fastbcp@arpe-io
+/plugin install fasttransfer@arpe-io
 ```
 
-Then just ask, e.g. *"Export dbo.Orders from SQL Server to Parquet on S3 with FastBCP, in parallel"*.
+Then just ask, e.g. *"Export dbo.Orders from SQL Server to Parquet on S3 with FastBCP, in parallel"* or
+*"Copy the PostgreSQL table public.orders to SQL Server with FastTransfer"*.
 
 ### Other agents (Codex, Cursor, Copilot, Gemini CLI…)
 
@@ -40,6 +43,7 @@ Copy the skill folder into the directory your agent reads skills from:
 ```bash
 git clone https://github.com/arpe-io/arpeio-skills.git
 cp -r arpeio-skills/plugins/fastbcp/skills/fastbcp <your-agent-skills-dir>/
+cp -r arpeio-skills/plugins/fasttransfer/skills/fasttransfer <your-agent-skills-dir>/
 ```
 
 For agents without skill support, paste the content of `SKILL.md` as custom instructions. The files in

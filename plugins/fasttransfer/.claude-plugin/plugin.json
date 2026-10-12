@@ -1,0 +1,13 @@
+{
+  "name": "fasttransfer",
+  "version": "0.17.0",
+  "description": "Build, explain and troubleshoot FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza and DuckDB, and CSV/Parquet/JSON file imports.",
+  "author": {
+    "name": "arpe.io",
+    "url": "https://www.arpe.io"
+  },
+  "homepage": "https://fasttransfer-docs.arpe.io",
+  "repository": "https://github.com/arpe-io/arpeio-skills",
+  "license": "MIT",
+  "keywords": ["fasttransfer", "transfer", "migration", "bulk", "etl", "csv", "parquet"]
+}
