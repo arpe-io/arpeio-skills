@@ -1,4 +1,4 @@
-# MigratorXpress – CLI parameter reference (0.7.x)
+# MigratorXpress – CLI parameter reference (0.7.3)
 
 Generate long flags. Short forms exist only for a few flags (`-a`, `-r`, `-p`, `-i`, `-e`, `-min`, `-max`, `-f`).
 
@@ -8,13 +8,18 @@ Generate long flags. Short forms exist only for a few flags (`-a`, `-r`, `-p`, `
 |---|---|
 | `--auth PATH` | Credentials JSON ([auth-file.md](auth-file.md)) |
 | `--source_db_auth_id ID` | Source entry |
-| `--source_db_name NAME` | Required; same as the source entry's `database` |
 | `--target_db_auth_id ID` | Target entry |
-| `--target_db_name NAME` | Required; same as the target entry's `database` |
 | `--migration_db_auth_id ID` | Tracking DB entry |
 | `--task_list TASKS…` **or** `--resume RUN_ID` | Exactly one ([tasks.md](tasks.md)) |
 
 Exception: `--upgrade_migdb` needs only `--auth` and `--migration_db_auth_id`.
+
+## Database names (optional)
+
+| Flag | Notes |
+|---|---|
+| `--source_db_name NAME` | **Deprecated, ignored**: the source database is the source entry's. A different value is logged as a warning |
+| `--target_db_name NAME` | Defaults to the target entry's database. When given, must match it (case-insensitive for SQL Server, exact for PostgreSQL), otherwise exit 20 |
 
 ## Scope: schemas and tables
 
@@ -41,7 +46,7 @@ Exception: `--upgrade_migdb` needs only `--auth` and `--migration_db_auth_id`.
 | Flag | Default | Notes |
 |---|---|---|
 | `--load_mode` | `truncate` | `truncate` empties each target table before loading; `append` adds rows |
-| `--drop_tables_if_exists VALUE` | off | Drops and recreates existing target tables in `create`. **0.7.x: any value enables it, even `false`** — omit the flag to keep tables. Also forces `--without_xid` |
+| `--drop_tables_if_exists [BOOL]` | `false` | Drops and recreates existing target tables in `create`. `true` / `yes` / `1` or the bare flag enable it, `false` / `no` / `0` disable it, other values are rejected (exit 2). When enabled, also forces `--without_xid`. A table whose `translate` failed is neither created nor dropped |
 | `--basic_diff` | off | `diff` compares only row and column counts (skips per-column statistics) |
 | `--compute_nbrows true\|false` | `false` | Exact `COUNT(*)` instead of catalog estimates |
 | `--without_xid` | off | Don't use the transaction id / ROWID watermark (Netezza, Oracle) that skips unchanged tables on re-runs |
@@ -57,11 +62,14 @@ Exception: `--upgrade_migdb` needs only `--auth` and `--migration_db_auth_id`.
 
 ## SQL Server target options
 
+Ignored with a PostgreSQL target (`--cci_threshold` / `--aci_threshold` are logged as ignored; `copy_fk` is
+rejected there).
+
 | Flag | Default | Notes |
 |---|---|---|
 | `--cci_threshold N` | `1000000` | Tables ≥ N rows get a clustered columnstore index |
 | `--aci_threshold N` | `100000000` | Tables ≥ N rows get `COLUMNSTORE_ARCHIVE` compression |
-| `--fk_mode` | `disabled` | For `copy_fk`: `disabled` (WITH NOCHECK then disabled), `untrusted` (WITH NOCHECK, enabled), `trusted` (fully validated) |
+| `--fk_mode` | `disabled` | For `copy_fk`: `disabled` (WITH NOCHECK then disabled), `untrusted` (WITH NOCHECK, enabled), `trusted` (fully validated). Any other value exits with code 20 |
 
 ## Oracle source options
 

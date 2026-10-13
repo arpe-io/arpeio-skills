@@ -1,24 +1,36 @@
-# MigratorXpress – Troubleshooting and known 0.7.x behaviours
+# MigratorXpress – Troubleshooting and known 0.7.3 behaviours
 
-## Known 0.7.x behaviours to plan around
+## Known behaviours to plan around
 
 | Behaviour | What to do |
 |---|---|
-| `--drop_tables_if_exists false` **enables** dropping (any value enables it) and forces `--without_xid` | Omit the flag to keep tables; pass `true` only on purpose |
-| Exit code 0 even when some tables failed | Read `RUN SUMMARY: n/m tables succeeded` at the end of the log, or query `sourcetargetloads` / `eventlog` |
-| Exit code 0 when the task list is invalid, missing, or combined with `--resume` | Check the log for CRITICAL/ERROR lines in scripts |
-| `--source_db_name` is required but the source connection uses the auth entry's `database` | Always pass the same value as the auth entry |
-| PostgreSQL as a target: `translate` produces SQL Server types | Use SQL Server as the target in 0.7.x |
-| `copy_pk` / `copy_ak` / `copy_fk` only for Oracle → SQL Server | Create constraints manually for other paths |
-| Only `auth_mode: "classic"` works | No ODBC, connection strings or trusted auth |
+| Failed tables make the run exit 40 (some) or 41 (all) since 0.7.2; before, it exited 0 | Schedulers: treat 40/41 as retryable with `--resume <run_id>` (the log prints the command) |
+| Differences found by `diff` don't fail a table and don't change the exit code | Read the diff results (`v_sourcetargetdiff`) or the log |
+| PostgreSQL target: schema, table and column names are lower-cased | Expect `sales.orders` for `Sales.Orders`; don't `--resume` a PostgreSQL-target run started before 0.7.2 |
+| PostgreSQL target: `copy_fk`, `--fk_mode`, `--task_list all` not supported; `--cci_threshold` / `--aci_threshold` ignored | Use `translate create transfer diff copy_pk copy_ak`; create foreign keys manually |
+| Netezza source: no `copy_pk` / `copy_ak` / `copy_fk`; no PostgreSQL target | Create constraints manually; target SQL Server |
+| Foreign keys to a table in another schema (PostgreSQL / SQL Server sources) are skipped with a warning | Create them manually |
+| SQL Server `GEOGRAPHY` / `GEOMETRY` (to PostgreSQL) and PostgreSQL `ARRAY` / user-defined columns fail `translate` | Exclude those tables (`--exclude_tables`) and migrate them separately; the failed table is not created |
+| Oracle → PostgreSQL data exactness not verified by the 0.7.3 release | Run `diff`, spot-check dates, timestamps and binary columns |
+| `--source_db_name` is ignored; `--target_db_name` must match the target entry | Omit both |
+| PostgreSQL source columns keep `NOT NULL` on the target since 0.7.3 (they were all nullable before) | Tables created by an older version differ; recreate them (`--drop_tables_if_exists true`) to get the source nullability |
 
 ## Common errors
 
 | Symptom | Cause / fix |
 |---|---|
-| `the following arguments are required: …` (exit 2) | Add the missing required flag (often `--source_db_name` / `--target_db_name`) |
-| `incorrect task sequence` | Use an accepted combination ([tasks.md](tasks.md)); e.g. add `create` between `translate` and `transfer` |
+| `the following arguments are required: …` (exit 2) | Add the missing required flag (`--auth`, the three auth ids) |
+| `argument --drop_tables_if_exists: … Boolean value expected` (exit 2) | Use `true` / `false` (or the bare flag) |
+| `incorrect task sequence` (exit 20) | Use an accepted combination ([tasks.md](tasks.md)); e.g. add `create` between `translate` and `transfer` |
+| `Either 'task_list' or 'resume' should be given …` (exit 20) | Pass exactly one of `--task_list` / `--resume` |
+| Exit 20, target database name mismatch | `--target_db_name` differs from the target entry's database: remove it or fix the entry |
+| Exit 10, auth entry error (`INVALID_AUTH_ENTRY`, `AUTH_MODE_NOT_SUPPORTED`, `INVALID_CONNECTION_STRING`) | Fix the named entry/key in the credentials file ([auth-file.md](auth-file.md)); `classic` accepts only `username`, `password`, `server`, `port`, `database`, `lib_dir` |
+| Exit 10, auth id not found | The `*_auth_id` is not a key of the file; the log lists the available names |
+| Exit 10, `UNSUPPORTED_SOURCE_TARGET_PAIR` / `COPY_FK_UNSUPPORTED_TARGET` / `CONSTRAINT_COPY_UNSUPPORTED_SOURCE` | See the known behaviours above |
+| Exit 10 with `odbc` | Install unixODBC (Linux) and Microsoft ODBC Driver 18, declare the DSN; never `odbc` for the target |
+| `trusted` fails on Linux | `klist` shows a valid ticket? `server` is the FQDN? SPN `MSSQLSvc/<fqdn>:<port>` registered? `/etc/krb5.conf` realm/KDC? `libgssapi_krb5` installed for FastTransfer? |
 | `--resume` complains or does nothing useful | Pass the run id; don't add `--task_list`; the tracking DB must still contain the run (`--migration_db_mode preserve`) |
+| SQL Server `Cannot define PRIMARY KEY constraint on nullable column` | The target column is nullable: tables created from a PostgreSQL source before 0.7.3 were all nullable; recreate them (`--drop_tables_if_exists true`) |
 | Connection error (exit 12) | Check host, `port` (JSON integer), `database` (Oracle: service name), firewall, credentials. `--log_level DEBUG` |
 | Oracle `DPI-1047` (thick mode) | Install Oracle Instant Client and set `lib_dir` (and `LD_LIBRARY_PATH` on Linux, `libaio`); for Oracle 12.1+ remove `lib_dir` to use thin mode |
 | Oracle `ORA-12154` / `ORA-28000` | Wrong service name / account locked |

@@ -1,7 +1,7 @@
 {
   "name": "migratorxpress",
-  "version": "0.7.1",
-  "description": "Build, explain and troubleshoot MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, for Oracle, PostgreSQL, SQL Server and Netezza sources to SQL Server.",
+  "version": "0.7.3",
+  "description": "Build, explain and troubleshoot MigratorXpress migrations: credentials file (classic, connection string, trusted, ODBC), task lists, resume, schema and table selection, for Oracle, PostgreSQL, SQL Server and Netezza sources to SQL Server or PostgreSQL.",
   "author": {
     "name": "arpe.io",
     "url": "https://www.arpe.io"

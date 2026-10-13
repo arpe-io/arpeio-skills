@@ -12,7 +12,7 @@ use a product correctly: which parameters exist, which options fit together, and
 |---|---|---|---|
 | [FastBCP](https://fastbcp-docs.arpe.io) | [`fastbcp`](plugins/fastbcp/skills/fastbcp/SKILL.md) | Builds, explains and troubleshoots FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more to CSV / Parquet / JSON / Excel, locally or to S3, Azure, GCS, OneLake | Available |
 | [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, DuckDB, and CSV / Parquet / JSON file imports | Available |
-| [MigratorXpress](https://migratorxpress.arpe.io) | [`migratorxpress`](plugins/migratorxpress/skills/migratorxpress/SKILL.md) | Builds, explains and troubleshoots MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, Oracle / PostgreSQL / SQL Server / Netezza → SQL Server | Available |
+| [MigratorXpress](https://migratorxpress.arpe.io) | [`migratorxpress`](plugins/migratorxpress/skills/migratorxpress/SKILL.md) | Builds, explains and troubleshoots MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, Oracle / PostgreSQL / SQL Server / Netezza → SQL Server or PostgreSQL | Available |
 | LakeXpress | `lakexpress` | Database to data lake | Planned |
 | arpe.io ADBC drivers | `arpeio-adbc-drivers` | arpe.io ADBC FastDrivers | Planned |
 
