@@ -32,6 +32,8 @@ When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
 - **1.3** → use this skill as is.
+- **`Unknown argument found: version`** → a very old build: run `./FastBCP '-?'` to see what it accepts,
+  and suggest upgrading.
 - **Older** → options added since may be missing (see the version notes in troubleshooting.md):
   check the flag there, or suggest upgrading.
 - **Newer** → this skill may miss new options or changed defaults: confirm anything you rely on in
@@ -131,7 +133,9 @@ SQL Server table to Parquet on Linux, integrated auth, parallel:
 
 ## Running and checking
 
-- Check the version first (see above).
+- Check the version first (see above). Help is `./FastBCP '-?'` (quoted: `?` is a shell wildcard) or
+  `./FastBCP` with no arguments; there is no `--help` (it only prints the usage after a parsing error,
+  exit code 1).
 - Add `--loglevel Debug` to diagnose a failing run; reuse the scheduler's run id in `--runid`.
 - For a quick test on a large table, export a filtered `--query` first (e.g. a `WHERE` on a date).
 - Exit code: the docs don't list return codes. Treat any non-zero exit code as a failure and read the log.

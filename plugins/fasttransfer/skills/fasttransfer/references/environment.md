@@ -66,7 +66,7 @@ docker run --rm \
   database on the host. Integrated (trusted) auth generally doesn't work from a Linux container; use SQL
   logins.
 - File paths in `read_*` are container paths (`/data/...`): mount the folder with `-v`.
-- `docker run --rm arpeio/fasttransfer:latest -?` prints the help.
+- `docker run --rm arpeio/fasttransfer:latest '-?'` prints the help.
 
 Integrations: Airflow (DockerOperator), Kestra (Docker Run), the `pg_fasttransfer` PostgreSQL extension
 (PG 15–18), and FastWrappers-TSQL for SQL Server (`dbo.xp_RunFastTransfer_secure`).

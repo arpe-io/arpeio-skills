@@ -34,7 +34,7 @@ error).
 
 - **0.17** → use this skill as is.
 - **Older** → options added since may be missing (see the version notes in troubleshooting.md): check
-  the flag in `./FastTransfer -?`, or suggest upgrading.
+  the flag in `./FastTransfer '-?'`, or suggest upgrading.
 - **Newer** → this skill may miss new options or changed defaults: confirm anything you rely on in
   the official docs above, and say that you did.
 
@@ -158,7 +158,8 @@ PostgreSQL table to SQL Server on Linux, parallel with Ctid, target emptied firs
 
 ## Running and checking
 
-- Check the version first (see above). `-?` prints the help.
+- Check the version first (see above). `./FastTransfer '-?'` prints the help (quote `-?`: `?` is a shell
+  wildcard).
 - Exit code 0 = success, non-zero = failure. Read the log on failure.
 - Use `--loglevel debug` to diagnose; reuse the scheduler's run id in `--runid`.
 - On a large table, try a filtered `--query` first to validate mapping and types.
