@@ -74,6 +74,22 @@
         "bigquery",
         "incremental"
       ]
+    },
+    {
+      "name": "arpeio-adbc-drivers",
+      "source": "./plugins/arpeio-adbc-drivers",
+      "description": "Install, connect, query and bulk-load with the arpe.io ADBC drivers: ArpeMSSQL (SQL Server, Azure SQL, Fabric), ArpePGSQL (PostgreSQL), ArpeOracle (Oracle, Autonomous Database) and ArpeNetezza (IBM Netezza). Covers the installer, licence, options, connection strings and URIs, authentication, TLS, type mappings and ingest.",
+      "category": "data",
+      "keywords": [
+        "adbc",
+        "arrow",
+        "sql-server",
+        "postgresql",
+        "oracle",
+        "netezza",
+        "driver",
+        "bulk-load"
+      ]
     }
   ]
 }
