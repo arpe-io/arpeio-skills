@@ -48,6 +48,19 @@ Each `*_auth_id` is a key in the JSON credentials file passed with `--auth`. Aut
 
 No environment-variable substitution in the file.
 
+## Check the installed version
+
+When you can run commands, run `./MigratorXpress --version` (Windows: `.\MigratorXpress.exe --version`)
+before building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected
+exit code).
+
+- **0.7.3** → use this skill as is.
+- **Older** → several hard rules below changed in 0.7.2 / 0.7.3 (exit codes 40/41, PostgreSQL target,
+  `--drop_tables_if_exists false`, startup validation): check `./MigratorXpress --help` and the version
+  notes in environment.md and troubleshooting.md, or suggest upgrading.
+- **Newer** → this skill may miss new options or changed behaviour: confirm anything you rely on in
+  `./MigratorXpress --help` and the official docs above, and say that you did.
+
 ## Workflow
 
 1. **Credentials file** – one entry per database (source, target, tracking). See auth-file.md.

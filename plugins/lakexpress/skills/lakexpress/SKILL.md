@@ -40,6 +40,20 @@ Official docs: https://lakexpress-docs.arpe.io/latest/
 Each `*_id` is a top-level key of the JSON file passed with `--auth_file`. Any string can be
 `$env{VAR}` (credentials.md).
 
+## Check the installed version
+
+When you can run commands, run `./LakeXpress --version` (Windows: `.\LakeXpress.exe --version`); it
+prints e.g. `LakeXpress 0.4.10 (build 2026-09-24T12:04:58Z)`. Otherwise ask for the version when it
+matters (a rejected option, an unexpected exit code).
+
+- **0.4.10** → use this skill as is.
+- **Older** → some behaviours differ (relative `--output_dir` before 0.4.9, SQL Server `pymssql` fix in
+  0.4.8, Linux OpenSSL crash in 0.4.5–0.4.6: see troubleshooting.md); check `./LakeXpress <command>
+  --help`, or suggest upgrading.
+- **Newer** → this skill may miss new options or changed behaviour: confirm anything you rely on in
+  `--help` and https://lakexpress-docs.arpe.io/latest/llms-full.txt (whole documentation in one file),
+  and say that you did.
+
 ## Workflow
 
 1. **LakeXpress DB** – once: an empty database owned by its user (PostgreSQL, SQL Server, MySQL) or a

@@ -42,6 +42,17 @@ Or in two steps:
 Then just ask, e.g. *"Export dbo.Orders from SQL Server to Parquet on S3 with FastBCP, in parallel"* or
 *"Copy the PostgreSQL table public.orders to SQL Server with FastTransfer"*.
 
+### Updating
+
+Refresh the marketplace, then update each installed plugin:
+
+```
+/plugin marketplace update arpe-io
+/plugin update fastbcp@arpe-io
+```
+
+(From a shell: `claude plugin marketplace update arpe-io` and `claude plugin update fastbcp@arpe-io`.)
+
 ### Other agents (Codex, Cursor, Copilot, Gemini CLI…)
 
 Copy the skill folder into the directory your agent reads skills from:
@@ -58,6 +69,30 @@ cp -r arpeio-skills/plugins/arpeio-adbc-drivers/skills/arpeio-adbc-drivers <your
 For agents without skill support, paste the content of `SKILL.md` as custom instructions. The files in
 `references/` can be attached or pasted when needed.
 
+## Product versions
+
+Each skill states the product version its facts were checked against. Before building a command, the
+skill asks the agent to check the installed version (`--version`, or the ADBC installer's `--installed`)
+and to confirm against the official docs when the installed product is newer.
+
+| Skill | Product version |
+|---|---|
+| `fastbcp` | FastBCP 1.3 |
+| `fasttransfer` | FastTransfer 0.17 |
+| `migratorxpress` | MigratorXpress 0.7.3 |
+| `lakexpress` | LakeXpress 0.4.10 |
+| `arpeio-adbc-drivers` | ArpeMSSQL 0.7.1, ArpePGSQL 0.4.7, ArpeOracle 0.3.12, ArpeNetezza 0.3.6 |
+
+## Platform support
+
+The skills are plain Markdown and work with any agent that reads skills. The commands they produce
+target the platforms the products ship for:
+
+- native binaries for Linux and Windows (bash and PowerShell commands; also `cmd.exe` for FastBCP and
+  FastTransfer);
+- FastBCP and FastTransfer also run in Docker, which is the way to use them on macOS;
+- the ADBC drivers ship for Linux x64 and Windows x64 only.
+
 ## Repository layout
 
 ```
@@ -71,6 +106,36 @@ plugins/
 ```
 
 Each skill is self-contained, so it can be installed on its own.
+
+## Local development
+
+Load a plugin straight from a clone, for the current session only; edits to `SKILL.md` and
+`references/` take effect in a new session:
+
+```bash
+git clone https://github.com/arpe-io/arpeio-skills.git
+cd arpeio-skills
+claude --plugin-dir ./plugins/fastbcp
+```
+
+Validate the manifests before opening a pull request:
+
+```bash
+claude plugin validate .
+claude plugin validate plugins/fastbcp
+```
+
+## Reporting issues
+
+Open an issue at https://github.com/arpe-io/arpeio-skills/issues. To make it reproducible, include:
+
+- the skill and the product version (`./FastBCP --version`, `./LakeXpress --version`…, or the ADBC
+  driver version);
+- the prompt you gave the agent;
+- the command or code it produced, with passwords and licence text removed;
+- the error message or the wrong behaviour you saw.
+
+For bugs in the products themselves (not in the skills), contact arpe.io support.
 
 ## Contributing
 

@@ -26,6 +26,18 @@ Facts below reflect FastTransfer **0.17** (docs + CLI source). Detailed referenc
 If something is not covered there, read the official docs instead of guessing:
 https://fasttransfer-docs.arpe.io/latest/llms-full.txt
 
+## Check the installed version
+
+When you can run commands, run `./FastTransfer --version` (Windows: `.\FastTransfer.exe --version`)
+before building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected
+error).
+
+- **0.17** → use this skill as is.
+- **Older** → options added since may be missing (see the version notes in troubleshooting.md): check
+  the flag in `./FastTransfer -?`, or suggest upgrading.
+- **Newer** → this skill may miss new options or changed defaults: confirm anything you rely on in
+  the official docs above, and say that you did.
+
 ## Workflow
 
 1. **Source** – engine → `--sourceconnectiontype`; `--sourceserver`, `--sourcedatabase`, auth
@@ -146,7 +158,7 @@ PostgreSQL table to SQL Server on Linux, parallel with Ctid, target emptied firs
 
 ## Running and checking
 
-- If you can execute commands, check the binary first: `./FastTransfer --version`. `-?` prints the help.
+- Check the version first (see above). `-?` prints the help.
 - Exit code 0 = success, non-zero = failure. Read the log on failure.
 - Use `--loglevel debug` to diagnose; reuse the scheduler's run id in `--runid`.
 - On a large table, try a filtered `--query` first to validate mapping and types.

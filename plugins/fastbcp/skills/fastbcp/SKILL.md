@@ -26,6 +26,17 @@ Facts below reflect FastBCP **1.3**. Detailed references (load only what you nee
 If something is not covered there, read the official docs instead of guessing:
 https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one file).
 
+## Check the installed version
+
+When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
+building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
+
+- **1.3** → use this skill as is.
+- **Older** → options added since may be missing (see the version notes in troubleshooting.md):
+  check the flag there, or suggest upgrading.
+- **Newer** → this skill may miss new options or changed defaults: confirm anything you rely on in
+  the official docs above, and say that you did.
+
 ## Workflow
 
 1. **Source** – engine → `--connectiontype`; server, database, auth (`--trusted`, `--user`/`--password`,
@@ -120,7 +131,7 @@ SQL Server table to Parquet on Linux, integrated auth, parallel:
 
 ## Running and checking
 
-- If you can execute commands, first check the binary: `./FastBCP --version`.
+- Check the version first (see above).
 - Add `--loglevel Debug` to diagnose a failing run; reuse the scheduler's run id in `--runid`.
 - For a quick test on a large table, export a filtered `--query` first (e.g. a `WHERE` on a date).
 - Exit code: the docs don't list return codes. Treat any non-zero exit code as a failure and read the log.

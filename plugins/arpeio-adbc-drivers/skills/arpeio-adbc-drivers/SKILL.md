@@ -45,6 +45,26 @@ Official docs: https://adbc-drivers-docs.arpe.io/
 All four: Linux x64 (glibc ≥ 2.28) and Windows x64 only (no macOS), ADBC API 1.1, OpenSSL built in, a
 licence required at runtime (no trial build).
 
+## Check the installed version
+
+When you can run commands, check what is installed before writing code; otherwise ask when it matters
+(an unknown option, an unexpected error):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/arpe-io/adbc-drivers/main/install.sh | sh -s -- --installed
+```
+
+```python
+conn.adbc_get_info()["driver_version"]     # from an open connection
+```
+
+- **Same as above** (MSSQL 0.7.1, PGSQL 0.4.7, Oracle 0.3.12, Netezza 0.3.6) → use this skill as is.
+- **Older** → options and fixes noted "since …" in the driver file may be missing (e.g. encrypted
+  MSSQL ingest needs 0.7.1, Oracle OS certificate store 0.3.12): suggest upgrading with the installer.
+- **Newer** → this skill may miss new options or changed defaults: confirm anything you rely on in
+  https://adbc-drivers-docs.arpe.io/llms-full.txt (whole documentation in one file), and say that you
+  did. The installer's `--list` gives the latest published versions.
+
 ## Workflow
 
 1. **Install** with the one-line installer and the user's licence (install.md):
