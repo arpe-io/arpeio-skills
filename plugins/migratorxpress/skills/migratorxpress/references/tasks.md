@@ -8,12 +8,25 @@
 | `create` | Creates target schemas and tables (keeps existing tables unless `--drop_tables_if_exists`) |
 | `transfer` | Copies the rows with FastTransfer (`--load_mode` truncate/append) |
 | `diff` | Compares source and target: row and column counts, then per-column statistics (min, max, distinct, nulls, mean) unless `--basic_diff` |
-| `copy_pk` | Creates primary keys (Oracle → SQL Server only) |
-| `copy_ak` | Creates unique constraints (Oracle → SQL Server only) |
-| `copy_fk` | Creates foreign keys according to `--fk_mode` (Oracle → SQL Server only) |
-| `all` | All seven |
+| `copy_pk` | Creates primary keys |
+| `copy_ak` | Creates unique constraints |
+| `copy_fk` | Creates foreign keys according to `--fk_mode` (SQL Server target only) |
+| `all` | All seven (so SQL Server target only, because of `copy_fk`) |
 
 Table discovery always runs first (internal step).
+
+## Constraint copy support (0.7.3)
+
+| Source → target | `copy_pk`, `copy_ak` | `copy_fk` |
+|---|---|---|
+| Oracle, PostgreSQL, SQL Server → SQL Server | yes | yes |
+| Oracle, PostgreSQL, SQL Server → PostgreSQL | yes | **no** – rejected at startup (exit 10) |
+| Netezza → SQL Server | **no** – rejected at startup (exit 10) | **no** |
+
+- Multi-column keys keep their key order. PostgreSQL and SQL Server sources: foreign keys that reference a
+  table in **another schema** are logged as a warning and not copied (target foreign keys are created within the target schema).
+- SQL Server refuses a primary key on a nullable column: the target columns keep the source `NOT NULL`
+  (PostgreSQL sources included since 0.7.3).
 
 ## Order and accepted combinations
 
@@ -39,8 +52,11 @@ Examples: `translate transfer` is rejected (missing `create`); `transfer copy_ak
 | Goal | `--task_list` |
 |---|---|
 | Full schema + data + validation | `translate create transfer diff` |
-| Then constraints (Oracle → SQL Server) | `copy_pk copy_ak copy_fk` |
-| Everything in one run | `all` (Oracle → SQL Server; with other sources `copy_*` fails) |
+| Then constraints, SQL Server target | `copy_pk copy_ak copy_fk` |
+| Then constraints, PostgreSQL target | `copy_pk copy_ak` |
+| Everything in one run, SQL Server target | `all` |
+| Everything in one run, PostgreSQL target | `translate create transfer diff copy_pk copy_ak` |
+| Netezza source | no `copy_*` task |
 | Schema only | `translate create` |
 | Reload data into existing tables | `transfer diff` |
 | Validate only | `diff` |
@@ -52,12 +68,17 @@ The docs run constraints as a separate step after the data is loaded and validat
 - `--resume RUN_ID` (`YYYYMMDD-<uuid4>`, printed at start, in the log file name and in the tracking DB) finishes a
   run: all steps are replayed and only table jobs not yet `DONE` are processed.
 - Do not pass `--task_list` with `--resume`. Schema flags are not needed.
-- All other required flags are still needed (`--auth`, both auth ids, both db names, `--migration_db_auth_id`).
+- `--auth` and the three auth ids (`--source_db_auth_id`, `--target_db_auth_id`, `--migration_db_auth_id`) are
+  still needed.
 - Performance and logging flags are taken from the resume command line.
 - The tracking DB must still hold the run: keep `--migration_db_mode preserve` (the default).
 - `--project` is ignored on resume (the original tag is kept).
 
-## Validation exit code (0.7.x bug)
+- A run that ends with failed tables logs the exact `--resume <run_id>` command to use (exit 40 or 41).
+- Don't resume a PostgreSQL-target run started before 0.7.2: start a new run.
 
-A missing, duplicated or invalid task list (or both `--task_list` and `--resume`) is logged as CRITICAL/ERROR but
-the process exits **0**. In scripts, check the log as well as the exit code.
+## Validation errors (exit 20)
+
+A missing task list (and no `--resume`), both `--task_list` and `--resume`, a duplicated or unknown task, or an
+unaccepted combination stops the run with exit code 20 (`TASK_LIST_MISSING`, `TASK_LIST_AND_RESUME`,
+`TASK_DUPLICATED`, `TASK_UNKNOWN`, `TASK_BAD_SEQUENCE`).

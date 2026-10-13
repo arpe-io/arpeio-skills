@@ -46,7 +46,7 @@
     {
       "name": "migratorxpress",
       "source": "./plugins/migratorxpress",
-      "description": "Build, explain and troubleshoot MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, for Oracle, PostgreSQL, SQL Server and Netezza sources to SQL Server.",
+      "description": "Build, explain and troubleshoot MigratorXpress migrations: credentials file (classic, connection string, trusted, ODBC), task lists, resume, schema and table selection, for Oracle, PostgreSQL, SQL Server and Netezza sources to SQL Server or PostgreSQL.",
       "category": "data",
       "keywords": [
         "migratorxpress",

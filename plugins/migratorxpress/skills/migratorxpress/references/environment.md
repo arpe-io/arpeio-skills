@@ -17,6 +17,11 @@ All data movement is done by FastTransfer (≥ 0.15.0, version checked at startu
   streams with Ctid (PostgreSQL source), Rowid (Oracle) or NZDataSlice (Netezza). SQL Server sources: one stream
   per table.
 - `--quiet_ft` hides FastTransfer output from the console (still logged to the file).
+- FastTransfer is started without a shell, so passwords with `"`, `$`, `` ` ``, `%` or spaces reach it unchanged;
+  passwords and connection strings are masked in the logged command and output.
+- PostgreSQL target: written with FastTransfer `pgcopy`. A PostgreSQL source is then read with `pgcopy` too, and
+  SQL Server date/time and binary columns are read through a casting query, so values arrive exactly. Oracle →
+  PostgreSQL exactness was not verified by the 0.7.3 release: run `diff` and spot-check.
 
 Sizing profiles from the docs:
 
@@ -69,14 +74,24 @@ SQL Server tracking DBs the primary-key rebuild is the slow part.
 - Console + file `mig_YYYYMMDD_HHMMSS_<run_id>.log` in `--log_dir` (default: current directory).
 - Format: `[YYYY-MM-DD HH:MM:SS.fff+TZ :: LEVEL :: PID :: process] message`.
 - `--log_level DEBUG` for troubleshooting.
-- At the end: `RUN SUMMARY: n/m tables succeeded` with the failed tables and tasks.
+- The logged `fasttransfer command` is shell-quoted and starts with the absolute FastTransfer path (since 0.7.2;
+  update log parsers written for 0.7.1).
+- At the end: `RUN SUMMARY: n/m tables succeeded` with the failed tables and tasks, and, when tables failed,
+  the `--resume <run_id>` command to retry them.
 
-## Exit codes (0.7.x)
+## Exit codes (0.7.3)
 
 | Code | Meaning |
 |---|---|
-| 0 | Run finished — **also when some tables failed** (see RUN SUMMARY) and, in 0.7.x, when task-list validation failed |
-| 1 | Other error (migration error, invalid `--fk_mode` / `--migration_db_mode`, unsupported constraint copy path) |
-| 2 | Command-line error (missing required flag, invalid choice, bad `--project`) |
+| 0 | Every table succeeded every task (differences reported by `diff` don't fail a table) |
+| 1 | Other error (migration error, invalid `--migration_db_mode`) |
+| 2 | Command-line error (missing required flag, invalid choice or boolean, bad `--project`) |
+| 10 | Configuration error, before any connection: invalid auth entry or mode, auth id not in the file, unsupported target / tracking DB type or source → target pair (Netezza → PostgreSQL), `copy_*` with a Netezza source, `copy_fk` with a PostgreSQL target, ODBC prerequisites missing |
 | 12 | Connection to source, target or tracking DB failed |
 | 13 | License invalid or expired |
+| 20 | Validation error: task list missing / invalid / combined with `--resume`, invalid `--fk_mode`, `--target_db_name` not matching the target entry |
+| 40 | Some tables failed a task (`PARTIAL_FAILURE`): fix and `--resume <run_id>` |
+| 41 | Every table failed (`ALL_JOBS_FAILED`) |
+
+Schedulers: 10–29 need a fix before retrying; 40–41 can be retried with `--resume`. Before 0.7.2, failed tables
+and invalid task lists exited 0; scripts relying on that now see non-zero codes.
