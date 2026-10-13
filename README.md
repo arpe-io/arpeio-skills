@@ -13,7 +13,7 @@ use a product correctly: which parameters exist, which options fit together, and
 | [FastBCP](https://fastbcp-docs.arpe.io) | [`fastbcp`](plugins/fastbcp/skills/fastbcp/SKILL.md) | Builds, explains and troubleshoots FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more to CSV / Parquet / JSON / Excel, locally or to S3, Azure, GCS, OneLake | Available |
 | [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, DuckDB, and CSV / Parquet / JSON file imports | Available |
 | [MigratorXpress](https://migratorxpress.arpe.io) | [`migratorxpress`](plugins/migratorxpress/skills/migratorxpress/SKILL.md) | Builds, explains and troubleshoots MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, Oracle / PostgreSQL / SQL Server / Netezza → SQL Server or PostgreSQL | Available |
-| LakeXpress | `lakexpress` | Database to data lake | Planned |
+| [LakeXpress](https://lakexpress-docs.arpe.io) | [`lakexpress`](plugins/lakexpress/skills/lakexpress/SKILL.md) | Builds, explains and troubleshoots LakeXpress pipelines: credentials file, sync configurations, incremental syncs, resume; Oracle / PostgreSQL / SQL Server / MySQL / MariaDB / SAP HANA / Teradata → Parquet on local disk, S3, GCS, Azure, OneLake → Snowflake, Databricks, Fabric, BigQuery, Redshift, MotherDuck, Glue, DuckLake | Available |
 | arpe.io ADBC drivers | `arpeio-adbc-drivers` | arpe.io ADBC FastDrivers | Planned |
 
 ## Install
@@ -24,6 +24,7 @@ use a product correctly: which parameters exist, which options fit together, and
 /plugin install fastbcp --marketplace arpe-io/arpeio-skills
 /plugin install fasttransfer --marketplace arpe-io/arpeio-skills
 /plugin install migratorxpress --marketplace arpe-io/arpeio-skills
+/plugin install lakexpress --marketplace arpe-io/arpeio-skills
 ```
 
 Or in two steps:
@@ -33,6 +34,7 @@ Or in two steps:
 /plugin install fastbcp@arpe-io
 /plugin install fasttransfer@arpe-io
 /plugin install migratorxpress@arpe-io
+/plugin install lakexpress@arpe-io
 ```
 
 Then just ask, e.g. *"Export dbo.Orders from SQL Server to Parquet on S3 with FastBCP, in parallel"* or
@@ -47,6 +49,7 @@ git clone https://github.com/arpe-io/arpeio-skills.git
 cp -r arpeio-skills/plugins/fastbcp/skills/fastbcp <your-agent-skills-dir>/
 cp -r arpeio-skills/plugins/fasttransfer/skills/fasttransfer <your-agent-skills-dir>/
 cp -r arpeio-skills/plugins/migratorxpress/skills/migratorxpress <your-agent-skills-dir>/
+cp -r arpeio-skills/plugins/lakexpress/skills/lakexpress <your-agent-skills-dir>/
 ```
 
 For agents without skill support, paste the content of `SKILL.md` as custom instructions. The files in
