@@ -3,6 +3,8 @@
 ## Install
 
 FastTransfer is a self-contained .NET 10 binary: `FastTransfer.exe` on Windows, `FastTransfer` on Linux.
+It embeds its own .NET runtime and libraries, so updating the .NET runtime on the server does not patch
+it: replace the binary (e.g. 0.18.1 for the October 2026 .NET security fixes).
 Download it after a trial request at https://arpe.io/get-trial?product=FastTransfer.
 
 ```powershell
@@ -76,7 +78,8 @@ Integrations: Airflow (DockerOperator), Kestra (Docker Run), the `pg_fasttransfe
 | Variable | Applies to | Default | Purpose |
 |---|---|---|---|
 | `FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES` | `msbulk`, `orabulk` | `60` | Timeout of a bulk load step, in minutes. Raise it for very large loads (0.17+) |
-| `FASTTRANSFER_SORTEDINPUT` | `msbulk` | `false` | `true` tells SQL Server bulk copy the input is sorted on the clustered index (0.17+) |
+| `FASTTRANSFER_SORTEDINPUT` | `msbulk` | `false` | `true` tells SQL Server bulk copy the input is sorted on the clustered index (partitioned target: on the partition column) (0.17+). Since 0.18 also forces the hint that `DataDriven` / `DBPartition` / `Timepartition` skip on rowstore clustered targets (see parallelism.md) |
+| `FASTTRANSFER_DATEFORMAT` | any source, `Timepartition` only | `yyyy-MM-dd` | Format of the date bounds sent to the source: `yyyy-MM-dd` or `yyyyMMdd`; any other value stops FastTransfer (0.18+) |
 
 ```bash
 export FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES=120

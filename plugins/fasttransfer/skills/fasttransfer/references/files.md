@@ -97,5 +97,5 @@ inside a DuckDB string is doubled (`''`).
 
 ## Cloud storage
 
-FastTransfer 0.17 documents no cloud source or target (no `s3://`, `az://`, `gs://` usage). Don't generate
+FastTransfer 0.18 documents no cloud source or target (no `s3://`, `az://`, `gs://` usage). Don't generate
 cloud URIs for FastTransfer. Download the files first, or use FastBCP to export to cloud storage.

@@ -11,7 +11,7 @@ FastTransfer reads a table or query from a **source** and bulk loads it into an 
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastTransfer **0.17** (docs + CLI source). Detailed references (load only what you need):
+Facts below reflect FastTransfer **0.18** (checked against the 0.18.1 docs). Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -32,7 +32,9 @@ When you can run commands, run `./FastTransfer --version` (Windows: `.\FastTrans
 before building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected
 error).
 
-- **0.17** → use this skill as is.
+- **0.18** → use this skill as is. On 0.18.0, recommend 0.18.1 (security update, see troubleshooting.md).
+- **0.17** → `DBPartition`, `Timepartition` and `FASTTRANSFER_DATEFORMAT` don't exist yet: use
+  `DataDriven` (e.g. on `YEAR(col)` or a `$PARTITION` function) or `Ntile` instead.
 - **Older** → options added since may be missing (see the version notes in troubleshooting.md): check
   the flag in `./FastTransfer '-?'`, or suggest upgrading.
 - **Newer** → this skill may miss new options or changed defaults: confirm anything you rely on in
@@ -75,6 +77,8 @@ There is no ODBC or OLE DB target.
 | Situation | `--parallelmethod` | Also needs |
 |---|---|---|
 | Small table / file | `None` (default) | – |
+| Natively partitioned table, partitions of similar size (SQL Server, PostgreSQL, Oracle, MySQL, Teradata) (0.18+) | `DBPartition` | `--sourceschema`, `--sourcetable`; no `--query` |
+| Date column, one stream per year / month / day / ISO week (0.18+) | `Timepartition` | `--distributekeycolumn "(col,year,month)"` |
 | PostgreSQL source (`pgsql`, `pgcopy`) | `Ctid` | `--sourceschema`, `--sourcetable` |
 | SQL Server source (`mssql`), **read-only** table / DB / snapshot | `Physloc` | – |
 | Oracle source (`oraodp`) | `Rowid` | `--sourceschema`, `--sourcetable` |
@@ -97,9 +101,11 @@ Then set `--degree` (default `-4` = cores/4; `0` = all cores; `N>0` = N threads;
   If unsure, tell the user to create it first.
 - Column mapping is by **position** unless `--mapmethod Name` is set. Use `Name` when the source column
   order differs from the target, and for file imports.
-- Methods `Random`, `DataDriven`, `RangeId`, `Ntile` require `--distributekeycolumn`; FastTransfer stops
+- Methods `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition` require `--distributekeycolumn`; FastTransfer stops
   with an error otherwise. Ask for the column if unknown; never guess one.
 - `Ctid`, `Rowid`, `NZDataSlice` require `--sourceschema` and `--sourcetable`, even when a `--query` is given.
+- `DBPartition` requires `--sourceschema` + `--sourcetable`; `--query` / `--fileinput` are not allowed. On a
+  non-partitioned table or an unsupported source it falls back to `None` with a warning.
 - `Ctid` only with `pgsql`/`pgcopy` sources; `Rowid` only with `oraodp`; `Physloc` only with `mssql`/`odbc`
   (SQL Server), and only on data that is not being written.
 - `--loadmode Truncate` empties the target table first. Confirm with the user before suggesting it on a

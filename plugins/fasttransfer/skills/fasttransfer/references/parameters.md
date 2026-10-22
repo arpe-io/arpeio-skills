@@ -1,4 +1,4 @@
-# FastTransfer – CLI parameter reference (0.17)
+# FastTransfer – CLI parameter reference (0.18)
 
 Generate **long flags only**, spelled exactly as below.
 
@@ -19,12 +19,13 @@ Generate **long flags only**, spelled exactly as below.
 
 | Flag | Value |
 |---|---|
-| `--sourceschema` | schema (required by `Ctid`, `Rowid`, `NZDataSlice`) |
-| `--sourcetable` | table (required by `Ctid`, `Rowid`, `NZDataSlice`) |
+| `--sourceschema` | schema (required by `Ctid`, `Rowid`, `NZDataSlice`, `DBPartition`) |
+| `--sourcetable` | table (required by `Ctid`, `Rowid`, `NZDataSlice`, `DBPartition`) |
 | `--query` | SQL query; used instead of the source table when given |
 | `--fileinput` | path to a file containing the SQL query (must exist) |
 
-A table or a query is mandatory. `--query` and `--fileinput` are mutually exclusive.
+A table or a query is mandatory. `--query` and `--fileinput` are mutually exclusive, and neither is
+allowed with `--parallelmethod DBPartition`.
 
 ## Target
 
@@ -63,8 +64,8 @@ Batch size guidance from the docs:
 
 | Flag | Default | Values |
 |---|---|---|
-| `--parallelmethod` | `None` | `None`, `Ctid`, `Physloc`, `Rowid`, `NZDataSlice`, `Ntile`, `RangeId`, `DataDriven`, `Random` (`--method` is an accepted alias) |
-| `--distributekeycolumn` | – | column or SQL expression in the source dialect |
+| `--parallelmethod` | `None` | `None`, `Ctid`, `Physloc`, `Rowid`, `NZDataSlice`, `Ntile`, `RangeId`, `DataDriven`, `Random`, `DBPartition` (0.18+), `Timepartition` (0.18+) (`--method` is an accepted alias) |
+| `--distributekeycolumn` | – | column or SQL expression in the source dialect; `Timepartition`: `"(col,year)"`, `"(col,year,month)"`, `"(col,year,month,day)"` or `"(col,year,week)"` |
 | `--degree` | `-4` | `N>0` threads, `0` = all cores, `-N` = cores / N |
 | `--datadrivenquery` | – | query returning the values to split on (`DataDriven`) |
 
@@ -82,4 +83,4 @@ Details: [parallelism.md](parallelism.md).
 | `--version` | Print the version |
 | `-?` / `--help` | Print the usage |
 
-There is no YAML config file and no `--traceparent` in FastTransfer 0.17 (those are FastBCP features).
+There is no YAML config file and no `--traceparent` in FastTransfer 0.18 (those are FastBCP features).

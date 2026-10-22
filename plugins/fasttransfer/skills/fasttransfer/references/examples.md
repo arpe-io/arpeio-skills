@@ -1,6 +1,6 @@
 # FastTransfer – Examples
 
-These are adapted from the official docs (FastTransfer 0.17) with canonical long flags. Credentials such as
+These are adapted from the official docs (FastTransfer 0.18) with canonical long flags. Credentials such as
 `FastUser` / `FastPassword` are doc placeholders. In real commands use trusted auth or shell variables
 (see SKILL.md, "Secrets").
 
@@ -180,6 +180,55 @@ These are adapted from the official docs (FastTransfer 0.17) with canonical long
   --degree 10 `
   --mapmethod "Name"
 ```
+
+## Partitioned SQL Server table → PostgreSQL, DBPartition (Linux, 0.18+)
+
+One stream per partition of `lineitem_part` (partitioned by month), biggest first. No `--query` allowed.
+
+```bash
+./FastTransfer \
+  --sourceconnectiontype "mssql" \
+  --sourceserver "localhost" \
+  --sourcedatabase "tpch" \
+  --sourcetrusted \
+  --sourceschema "dbo" \
+  --sourcetable "lineitem_part" \
+  --targetconnectiontype "pgcopy" \
+  --targetserver "localhost:5432" \
+  --targetdatabase "tpch" \
+  --targetuser "postgres" \
+  --targetpassword "mypassword" \
+  --targetschema "public" \
+  --targettable "lineitem" \
+  --loadmode "Truncate" \
+  --parallelmethod "DBPartition" \
+  --degree 8
+```
+
+## SQL Server query → PostgreSQL, Timepartition by month (PowerShell, 0.18+)
+
+```powershell
+.\FastTransfer.exe `
+  --sourceconnectiontype "mssql" `
+  --sourceserver "localhost" `
+  --sourcedatabase "tpch" `
+  --sourcetrusted `
+  --query "SELECT * FROM dbo.lineitem WHERE l_shipmode = 'AIR'" `
+  --targetconnectiontype "pgcopy" `
+  --targetserver "localhost:5432" `
+  --targetdatabase "tpch" `
+  --targetuser "postgres" `
+  --targetpassword "mypassword" `
+  --targetschema "public" `
+  --targettable "lineitem_air" `
+  --loadmode "Truncate" `
+  --parallelmethod "Timepartition" `
+  --distributekeycolumn "(l_shipdate,year,month)" `
+  --degree 8
+```
+
+If the source needs compact date literals, set `$env:FASTTRANSFER_DATEFORMAT = "yyyyMMdd"` first
+(bash: `export FASTTRANSFER_DATEFORMAT=yyyyMMdd`).
 
 ## Many CSV files → SQL Server, one file per thread (PowerShell)
 
