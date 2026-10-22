@@ -14,7 +14,7 @@ use a product correctly: which parameters exist, which options fit together, and
 | [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, DuckDB, and CSV / Parquet / JSON file imports | Available |
 | [MigratorXpress](https://migratorxpress.arpe.io) | [`migratorxpress`](plugins/migratorxpress/skills/migratorxpress/SKILL.md) | Builds, explains and troubleshoots MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, Oracle / PostgreSQL / SQL Server / Netezza → SQL Server or PostgreSQL | Available |
 | [LakeXpress](https://lakexpress-docs.arpe.io) | [`lakexpress`](plugins/lakexpress/skills/lakexpress/SKILL.md) | Builds, explains and troubleshoots LakeXpress pipelines: credentials file, sync configurations, incremental syncs, resume; Oracle / PostgreSQL / SQL Server / MySQL / MariaDB / SAP HANA / Teradata → Parquet on local disk, S3, GCS, Azure, OneLake → Snowflake, Databricks, Fabric, BigQuery, Redshift, MotherDuck, Glue, DuckLake | Available |
-| [arpe.io ADBC drivers](https://adbc-drivers-docs.arpe.io) | [`arpeio-adbc-drivers`](plugins/arpeio-adbc-drivers/skills/arpeio-adbc-drivers/SKILL.md) | Installs, configures and troubleshoots the ArpeMSSQL, ArpePGSQL, ArpeOracle and ArpeNetezza ADBC drivers: installer, licence, URIs and connection strings, authentication, TLS, Arrow type mappings, bulk ingest, from Python, C, C#, Go, Java, R or Rust | Available |
+| [arpe.io ADBC drivers](https://adbc-drivers-docs.arpe.io) | [`arpeio-adbc-drivers`](plugins/arpeio-adbc-drivers/skills/arpeio-adbc-drivers/SKILL.md) | Installs, configures and troubleshoots the ArpeMSSQL, ArpePGSQL, ArpeOracle, ArpeNetezza and ArpeTeradata ADBC drivers: installer, licence, URIs and connection strings, authentication, TLS, Arrow type mappings, bulk ingest, from Python, C, C#, Go, Java, R or Rust | Available |
 
 ## Install
 
@@ -81,7 +81,7 @@ and to confirm against the official docs when the installed product is newer.
 | `fasttransfer` | FastTransfer 0.17 |
 | `migratorxpress` | MigratorXpress 0.7.3 |
 | `lakexpress` | LakeXpress 0.4.10 |
-| `arpeio-adbc-drivers` | ArpeMSSQL 0.7.1, ArpePGSQL 0.4.7, ArpeOracle 0.3.12, ArpeNetezza 0.3.6 |
+| `arpeio-adbc-drivers` | ArpeMSSQL 0.7.6, ArpePGSQL 0.4.7, ArpeOracle 0.4.2, ArpeNetezza 0.3.7, ArpeTeradata 0.3.5 |
 
 ## Platform support
 

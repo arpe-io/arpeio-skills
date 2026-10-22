@@ -5,7 +5,7 @@ set on the **database** before init (Python `db_kwargs`) unless a driver file sa
 
 ## Loading by name in each language
 
-Swap `arpemssql` and the URI for `arpepgsql`, `arpeoracle` or `arpenz` (driver files).
+Swap `arpemssql` and the URI for `arpepgsql`, `arpeoracle`, `arpenz` or `arpeteradata` (driver files).
 
 ```python
 # Python: pip install adbc-driver-manager pyarrow
@@ -114,7 +114,7 @@ conn = dbapi.connect(driver="arpepgsql", db_kwargs=db_kwargs)
 | Query → Arrow table | `cur.execute(sql); t = cur.fetch_arrow_table()` |
 | Query → pandas | `cur.fetch_df()` (or `fetch_arrow_table().to_pandas()`) |
 | Stream big results | `reader = cur.fetch_record_batch()` then `for batch in reader: …` (constant memory) |
-| Parameters | `cur.execute(sql, parameters=[…])` with the driver's marker: `?` (SQL Server, Netezza), `$1` (PostgreSQL, also Netezza), `:1` / `:name` (Oracle) |
+| Parameters | `cur.execute(sql, parameters=[…])` with the driver's marker: `?` (SQL Server, Netezza, Teradata), `$1` (PostgreSQL, also Netezza), `:1` / `:name` (Oracle) |
 | Many parameter rows | `cur.executemany(sql, [(…), (…)])` |
 | Bulk load Arrow / pandas | `cur.adbc_ingest("table", data, mode="create" \| "append" \| "replace" \| "create_append", db_schema_name="schema", temporary=False)` – `data` = pyarrow Table / RecordBatch / RecordBatchReader |
 | Rows per result batch | `cur.adbc_statement.set_options(**{"adbc.<prefix>.batch_size": "100000"})` |
@@ -136,7 +136,7 @@ with conn.cursor() as cur:
             w.write_batch(batch)
 ```
 
-## Rules common to the four drivers
+## Rules common to the five drivers
 
 - One ADBC connection = one database session; not for concurrent use from several threads. Run work in
   parallel with one connection per worker.
@@ -147,7 +147,7 @@ with conn.cursor() as cur:
   The Arrow column names must match the target columns for `append`.
 - After `adbc_ingest` with autocommit off, `conn.commit()` or the rows are lost at close.
 - Every result field carries the server type name in its metadata (`ARPEMSSQL:type`, `ARPEPGSQL:type`,
-  `ARPEORACLE:type`), e.g. `decimal(10,2)`, `VARCHAR2(100)`.
+  `ARPEORACLE:type`, `ARPENZ:type`, `ARPETERADATA:type`), e.g. `decimal(10,2)`, `VARCHAR2(100)`.
 - ADBC errors carry the server error (SQLSTATE / error number) in their details (Python: exception
   `.details`, `.sqlstate`, `.vendor_code`).
 - Partitioned execution and Substrait are not supported.

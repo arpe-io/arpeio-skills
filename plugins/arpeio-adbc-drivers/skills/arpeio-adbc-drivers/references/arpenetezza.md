@@ -1,4 +1,4 @@
-# ArpeNetezza – IBM Netezza ADBC driver (0.3.6)
+# ArpeNetezza – IBM Netezza ADBC driver (0.3.7)
 
 Load name **`arpenz`** (not `arpenetezza`). Native Netezza protocol (HSV2 handshake + DBOS binary
 results) over TCP/TLS: no ODBC, no nzpy. Options `adbc.arpenz.*`.
@@ -23,7 +23,7 @@ A discrete option always wins. Between a URI and a connection string, the **firs
 a shared field.
 
 **URI**: `netezza://[user[:password]@]host[:port][/database][?key=value&…]` (also `postgresql://`,
-`postgres://`, `arpenz://`). Path = database. Parameters: `user`, `password`, `dbname`,
+`postgres://`, `arpenz://`; `GetOption("uri")` always returns `netezza://`). Path = database. Parameters: `user`, `password`, `dbname`,
 `application_name`, `connect_timeout`, `sslmode`, `sslrootcert`, `require_password_encryption`.
 
 ```text
@@ -64,9 +64,11 @@ Server=nzhost,5480;Database=SYSTEM;User ID=admin;Password=<pw>;Encrypt=true;Trus
 | `arpeio.adbc.license`, `arpeio.adbc.license_file` | – | Licence |
 
 - `adbc.connection.autocommit`: only `true` or `1` turn it on; **any other value (`True`, `yes`)
-  turns it off**. `adbc.connection.catalog` switches database (reconnects; uncommitted work lost).
+  turns it off**. `adbc.connection.catalog` switches database (reconnects; uncommitted work lost; an
+  unknown database → `NOT_FOUND`, 0.3.7).
   `adbc.connection.db_schema` sets `search_path`.
 - Statement options: `adbc.arpenz.batch_size`, `adbc.arpenz.max_batch_size` (1,000,000).
+  `memory_budget_mb` and `prefetch` are accepted no-ops (any value since 0.3.7).
 - Removed (rejected as unknown since 0.3.0): `copy_format`, `geospatial`, `uuid_casing`,
   `arpenz.bulk_*`. Accepted but useless: `trusted`, `auth_type=integrated`, `krb5.*`, `channel_binding`,
   `gssencmode` (`require` values are refused at connect).
@@ -94,6 +96,11 @@ int16/32/64; `REAL` / `DOUBLE` → float32/64; `NUMERIC(p,s)` → decimal128(p,s
 decimal128(19,2); `CHAR` / `VARCHAR` (LATIN9 → UTF-8), `NCHAR` / `NVARCHAR`, `JSON`, `JSONB`,
 `JSONPATH`, `TIME WITH TIME ZONE` → utf8; `VARBINARY`, `ST_GEOMETRY` → binary; `DATE` → date32;
 `TIME` → time64[us]; `TIMESTAMP` → timestamp[us] (no tz); `INTERVAL` → utf8 (or native).
+
+Since 0.3.7 every result field carries its Netezza type name in the Arrow field metadata key
+`ARPENZ:type` (`NUMERIC(18,2)`, `CHARACTER VARYING(100)`…), for queries, `ExecuteSchema` and
+`GetTableSchema`: `table.schema.field(0).metadata[b"ARPENZ:type"]`. DDL reports 0 rows affected
+(was -1).
 
 Ingest `create` DDL: bool → BOOLEAN; int8 → SMALLINT; int16/32/64 → SMALLINT / INTEGER / BIGINT;
 float32/64 → REAL / DOUBLE PRECISION; utf8 → NVARCHAR(n) (width shared from the 64 KB row budget, up to
@@ -149,6 +156,7 @@ with dbapi.connect(driver="arpenz", db_kwargs=db_kwargs) as conn:
 |---|---|
 | `NPS session open failed: …` on the first query | Connection error surfaced lazily: host, port 5480, firewall |
 | `getaddrinfo(…)` | Host doesn't resolve (IBM Cloud instance stopped?) |
+| `FATAL 1:  Database "…" does not exist` / `Cannot switch current_catalog to '…'` | Wrong database: `SELECT DATABASE FROM _v_database` |
 | `Connection string: unknown keyword 'Port'` / `'sslmode'` | Port in `Server=host,5480`; TLS via discrete options or URI |
 | `TLS handshake failed: the server only offers a TLS version older than the allowed minimum …` | NPS 7: `tls_min_version=1.0`, or `sslmode=disable` on a trusted network |
 | `certificate verification failed: unable to get local issuer certificate …` | `ssl_root_cert` with intermediate + root |
@@ -165,6 +173,5 @@ with dbapi.connect(driver="arpenz", db_kwargs=db_kwargs) as conn:
 | Autocommit seems off | Use exactly `true` or `1` |
 | `Unknown database option: …` | Typo or removed option |
 
-Docs vs driver 0.3.6: when both a URI and a connection string set a field, the first one wins (docs:
-the last); `GetInfo` reports vendor `IBM Netezza` (docs: PostgreSQL); `memory_budget_mb` is validated
-(16–8192) but unused; the INSERT fallback is also capped at 8000 ÷ columns rows per statement.
+Docs vs driver 0.3.7: when both a URI and a connection string set a field, the first one wins (docs:
+the last); the INSERT fallback is also capped at 8000 ÷ columns rows per statement.

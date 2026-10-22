@@ -62,13 +62,13 @@ connection-only and fail as database options with `Unknown database option`).
 | `adbc.arpepgsql.krb5.spn` / `.krbsrvname` | `POSTGRES/<server>` / `POSTGRES` | Windows SSPI |
 | `adbc.arpepgsql.sslmode` | `prefer` | `disable`, `prefer`, `require`, `verify-ca`, `verify-full` (**lower case exactly** here) |
 | `adbc.arpepgsql.ssl_root_cert` | `PGSSLROOTCERT`, else OpenSSL defaults | PEM file. With `require` it turns on chain verification (0.4.7) |
-| `adbc.arpepgsql.channel_binding` | `prefer` | `require` = only SCRAM-SHA-256-PLUS over TLS |
+| `adbc.arpepgsql.channel_binding` | `prefer` | `require` = only SCRAM-SHA-256-PLUS over TLS; every other method (cleartext, MD5, GSS / SSPI, trust) is refused (0.4.7) |
 | `adbc.arpepgsql.require_password_encryption` | `false` | Never send a cleartext/MD5 password without TLS |
 | `adbc.arpepgsql.encrypt` / `.trust_server_cert` | `false` | Used only if no `sslmode`: `encrypt=true` → `verify-full` (or `require` with `trust_server_cert=true`) |
 | `adbc.arpepgsql.login_timeout` | `30` | Seconds (`0` = 30) |
 | `adbc.arpepgsql.socket_timeout` | `0` (none) | Per read/write, also TLS handshake and login |
 | `adbc.arpepgsql.query_timeout` | `0` | **Accepted but not applied**: use `socket_timeout`, `SET statement_timeout`, or cancel |
-| `adbc.arpepgsql.buffer_size` | `32000` | Rows per Arrow batch (1..10,000,000) |
+| `adbc.arpepgsql.buffer_size` | `32000` | Rows per Arrow batch (1..10,000,000); `0`, negative or `10abc` rejected (0.4.7) |
 | `adbc.arpepgsql.copy_format` | `auto` | `binary`, `text` (env `ARPEIO_ADBC_COPY_FORMAT` when unset) |
 | `adbc.arpepgsql.numeric_format` | `decimal` | `string` = every NUMERIC as text (lossless, keeps NaN / Infinity) |
 | `adbc.arpepgsql.numeric_special` | `error` | `null` = NaN / ±Infinity in a decimal column read as NULL |
@@ -76,7 +76,11 @@ connection-only and fail as database options with `Unknown database option`).
 | `adbc.arpepgsql.geospatial` | `geoarrow.wkb` | `wkb`, `binary` (PostGIS geometry / geography) |
 | `arpeio.adbc.license`, `arpeio.adbc.license_file` | – | Licence |
 
-Connection options: `adbc.connection.autocommit` (`true` / `false` only), `adbc.connection.catalog`
+Server, database, username, password > 255 bytes or `ssl_root_cert` path > 1023 bytes → rejected
+("… is too long"), also from `PGUSER` / `PGPASSWORD` / `PGSSLROOTCERT` (0.4.7; earlier versions cut them).
+
+Connection options: `adbc.connection.autocommit` (`true` / `false` / `1` / `0` only, anything else
+rejected), `adbc.connection.catalog`
 (**reconnects**: temp tables and session settings are lost; not inside a transaction),
 `adbc.connection.db_schema` (`SET search_path`). No isolation-level option: use SQL.
 
@@ -84,6 +88,7 @@ Statement options: `adbc.arpepgsql.batch_size`, `adbc.arpepgsql.max_batch_size` 
 `arpepgsql.bulk_batch_size` (rows per COPY chunk, chunks also flush at ~4 MiB). No effect:
 `memory_budget_mb`, `prefetch`, `arpepgsql.bulk_tablock` / `keep_identity` / `check_constraints` /
 `fire_triggers` / `keep_nulls` (COPY always fires triggers, checks constraints, keeps NULLs).
+`adbc.ingest.temporary` takes `true` / `false` / `1` / `0` only; integer options reject trailing text.
 
 ## Authentication
 
@@ -109,7 +114,7 @@ TLS by `sslmode`:
 
 The driver never reads the OS certificate store: on RHEL-family and Windows give `ssl_root_cert`
 (RHEL: `/etc/pki/tls/certs/ca-bundle.crt`) or `SSL_CERT_FILE`. TLS 1.2 minimum. `~/.postgresql/root.crt`
-is not read.
+is not read. No SNI for an IP address (0.4.7).
 
 ## Types
 
@@ -121,27 +126,38 @@ utf8; `bytea` → binary; `date` → date32; `time(p)` / `timestamp(p)` → s (p
 `geoarrow.wkb`; arrays, ranges, enums, money, composites → binary (raw wire bytes): cast them in SQL
 (`col::text`) for readable values.
 
+- `'infinity'` dates / timestamps fail the read (`column "valid_to": 'infinity' / '-infinity' has no
+  Arrow date32 value …`): map them in SQL (`NULLIF(col, 'infinity')`).
+- PostGIS values are **EWKB** (SRID embedded, Z/M in high bits), not ISO WKB: `ST_AsBinary(geom)` for
+  ISO WKB.
+- The text path (`copy_format=text` / `auto` fallback) returns the same Arrow types; it needs the
+  default `ISO` DateStyle and `IntervalStyle=postgres`, and one statement per query text.
+
 Ingest `create` DDL: bool → boolean; int8/uint8/int16 → smallint; uint16/int32 → integer;
 uint32/int64 → bigint; uint64 → numeric(20,0); float32/64 → real / double precision; utf8 → text;
-binary → bytea; decimal → numeric(p,s); date → date; time → time(0/3/6); timestamp → timestamp(0/3/6)
-(tz → timestamptz); interval → interval. Refused: duration, list, struct, map, dictionary, null.
+binary → bytea; decimal → numeric(p,s); date32 / date64 → date; time → time(0/3/6); timestamp →
+timestamp(0/3/6) (tz → timestamptz); intervals (all three Arrow kinds, 0.4.7) → interval. Refused:
+duration, list, struct, map, dictionary, null.
 Nanoseconds are truncated to microseconds.
 
 - `append` into an existing permanent table maps utf8 into `json`, `jsonb`, `inet`, `uuid`… columns;
   not for temporary tables or modes that run DDL.
+- `temporary=True` ingest keeps Arrow-only typing: utf8 into a `jsonb` / `inet` / `uuid` temp column is
+  refused by the server.
 - COPY uses the Arrow column names as a quoted column list: names must match exactly.
 
 ## Ingest (COPY binary)
 
 `cur.adbc_ingest("orders", data, mode=…, db_schema_name="staging", temporary=False)`; `temporary=True`
-→ `pg_temp."orders"`. Without a schema: `current_schema()`. `adbc.ingest.target_catalog` is ignored
+→ `pg_temp."orders"`. Without a schema: `current_schema()` (never a same-named temp table). `adbc.ingest.target_catalog` is ignored
 (switch database with `adbc.connection.catalog`).
 
 Since 0.4.7 ingest runs **on the connection's own session**:
 - autocommit off (dbapi default): DDL + COPY join the transaction → `conn.commit()`;
 - autocommit on: DDL + COPY in one transaction (a failed `replace` keeps the old table).
 
-Parallel loads: one connection per loader.
+Parallel loads: one connection per loader. C / Rust: binding a single batch (`Bind`) to an ingest works
+since 0.4.7 (bind a stream before).
 
 ## Example
 
@@ -176,19 +192,21 @@ with conn.cursor() as cur:
 | `sslmode=require` fails after upgrading to 0.4.7 | A root cert is set (option or `PGSSLROOTCERT`) and doesn't match: fix it or unset `PGSSLROOTCERT` |
 | stderr `server declined TLS; continuing on an UNENCRYPTED connection` | `sslmode=verify-full` (or `require`) |
 | `channel_binding=require, but the connection cannot use SCRAM-SHA-256-PLUS` | Enable TLS + `scram-sha-256` in pg_hba, or `channel_binding=prefer` |
+| `channel_binding=require, but the server requested authentication method …` | The pg_hba line uses `password` / `md5` / `gss` / `sspi` / `trust`: switch it to `scram-sha-256`, or `channel_binding=prefer` |
+| `Option '…' is too long (max … bytes)` | Stray paste in server / user / password / cert path (or `PG*` env var) |
+| An option that used to load now fails `INVALID_ARGUMENT` | 0.4.7 is strict: booleans `true`/`false`/`1`/`0`, integers without trailing text, `buffer_size` > 0 |
 | `server requires GSS/SSPI authentication; set auth_mode=integrated` | Windows: `auth_type=integrated`; Linux: password pg_hba entry |
 | `… a result set is still open on this connection …` | Read / close the previous result first |
 | `current transaction is aborted` (25P02) | `conn.rollback()` |
 | `NUMERIC NaN/Infinity cannot be represented as decimal128` | `numeric_format=string` or `numeric_special=null` |
-| `'infinity' … has no Arrow timestamp value` | `NULLIF(col, 'infinity')` in SQL |
+| `column "…": 'infinity' / '-infinity' has no Arrow … value` | `NULLIF(col, 'infinity')` in SQL |
+| `query returned more than one result set` | Text path: one statement per query |
 | `server does not implement binary COPY` | `copy_format=auto` or `text` |
 | Ingest `ALREADY_EXISTS` | `append` / `replace` / `create_append`; on append, Arrow names / types don't match the table |
 | `No PostgreSQL type mapping for Arrow format …` | Cast the column before ingest |
 | Ingested rows disappear | `conn.commit()` |
 | `query_timeout` ignored / query hangs | `socket_timeout`, `SET statement_timeout`, or `cur.adbc_cancel()` |
 
-Docs (0.4.6) vs driver 0.4.7: `require` + root cert now verifies the chain; no SNI for IP addresses;
-ingest joins the connection's transaction (docs: commits on its own); `query_timeout`,
-`memory_budget_mb` and `adbc.ingest.target_catalog` have no effect; `adbc.ingest.mode` must be set
-(Python does it); nanosecond values are truncated, not rejected; `oid` → uint32; `login_timeout=0`
-means 30 s; invalid boolean / integer values are now rejected.
+Docs vs driver 0.4.7: `query_timeout` is documented as a per-query timeout and `adbc.ingest.target_catalog`
+as the ingest database, but neither has an effect; `memory_budget_mb` is unused; the docs say Arrow
+nanosecond values are rejected, the driver truncates them to microseconds.
