@@ -1,6 +1,6 @@
 # FastBCP – Examples
 
-These are taken from the official docs (FastBCP 1.3). Credentials such as `FastUser` / `FastPassword`
+These are taken from the official docs (FastBCP 1.4). Credentials such as `FastUser` / `FastPassword`
 are doc placeholders. In real commands use `--trusted` or shell variables (see SKILL.md, "Secrets").
 
 ## SQL Server → CSV, integrated auth, filtered query (Linux)
@@ -104,7 +104,7 @@ export FASTBCP_DBPARTITION_TARGET_MODE=HIVE
   --runid "pgsql_to_parquet_dbpartition"
 ```
 
-## PostgreSQL → OneLake, Ctid (Linux)
+## PostgreSQL → OneLake, Physical (Linux)
 
 ```bash
 export AZURE_TENANT_ID="YOUR_TENANT_ID"
@@ -122,7 +122,7 @@ export AZURE_CLIENT_SECRET="Your_AZClient_Secret"
   --query "SELECT * FROM orders WHERE order_date between '2024-01-01' and '2024-12-31'" \
   --directory "onelake://myworkspace/mylakehouse/{sourcedatabase}/{sourceschema}/{sourcetable}/year=2024/" \
   --fileoutput "orders_2024.parquet" \
-  --parallelmethod "Ctid" \
+  --parallelmethod "Physical" \
   --paralleldegree 8
 ```
 
@@ -151,7 +151,7 @@ export AZURE_CLIENT_SECRET="Your_AZClient_Secret"
   --runid "mysql_to_csv_parallel10_datadriven"
 ```
 
-## Oracle → Excel, Rowid, debug logging (PowerShell)
+## Oracle → Excel, Physical, debug logging (PowerShell)
 
 ```powershell
 .\FastBCP.exe `
@@ -165,16 +165,16 @@ export AZURE_CLIENT_SECRET="Your_AZClient_Secret"
   --directory "D:\temp" `
   --fileoutput "orders.xlsx" `
   --encoding "UTF-8" `
-  --parallelmethod Rowid `
+  --parallelmethod Physical `
   --paralleldegree 7 `
   --merge false `
   --loglevel "Debug" `
-  --runid "oracle_to_excel_parallel_rowid" `
+  --runid "oracle_to_excel_parallel_physical" `
   --settingsfile "C:\config\oracle-export.json" `
   --nobanner
 ```
 
-## Oracle → Google Cloud Storage, Rowid (Linux)
+## Oracle → Google Cloud Storage, Physical (Linux)
 
 ```bash
 ./FastBCP \
@@ -186,7 +186,7 @@ export AZURE_CLIENT_SECRET="Your_AZClient_Secret"
   --sourcetable "ORDERS" \
   --directory "gs://warehouse-bucket/oracle-export/orders" \
   --fileoutput "orders.parquet" \
-  --parallelmethod "Rowid" \
+  --parallelmethod "Physical" \
   --paralleldegree 8 \
   --merge false
 ```
@@ -194,7 +194,7 @@ export AZURE_CLIENT_SECRET="Your_AZClient_Secret"
 (The docs' version of this example sets `--merge "True"`, but merge is documented as not available
 for cloud targets, so `false` is used here.)
 
-## Netezza via ADBC → Parquet, NZDataSlice (PowerShell)
+## Netezza via ADBC → Parquet, Physical (PowerShell)
 
 ```powershell
 .\FastBCP.exe `
@@ -204,7 +204,30 @@ for cloud targets, so `false` is used here.)
   --sourcetable "ORDERS" `
   --directory "D:\export\orders" `
   --fileoutput "orders.parquet" `
-  --parallelmethod NZDataSlice `
+  --parallelmethod Physical `
+  --paralleldegree 8
+```
+
+`Physical` resolves to `Ctid` on PostgreSQL, `Rowid` on Oracle and `NZDataSlice` on Netezza. On
+FastBCP 1.3 or older, write those names instead.
+
+## Teradata via ADBC → Parquet, Ntile (Linux)
+
+```bash
+export FASTBCP_TTU_PATH=/opt/teradata/client/20.00   # only needed for the legacy-port logon
+
+./FastBCP \
+  --connectiontype adbc_teradata \
+  --server "td-host" \
+  --database "TPCH" \
+  --user "FastUser" \
+  --password "FastPassword" \
+  --sourceschema "TPCH" \
+  --sourcetable "ORDERS" \
+  --directory "/data/export/orders" \
+  --fileoutput "orders.parquet" \
+  --parallelmethod Ntile \
+  --distributekeycolumn "o_orderkey" \
   --paralleldegree 8
 ```
 

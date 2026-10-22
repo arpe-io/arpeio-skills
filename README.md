@@ -77,7 +77,7 @@ and to confirm against the official docs when the installed product is newer.
 
 | Skill | Product version |
 |---|---|
-| `fastbcp` | FastBCP 1.3 |
+| `fastbcp` | FastBCP 1.4 |
 | `fasttransfer` | FastTransfer 0.17 |
 | `migratorxpress` | MigratorXpress 0.7.3 |
 | `lakexpress` | LakeXpress 0.4.10 |

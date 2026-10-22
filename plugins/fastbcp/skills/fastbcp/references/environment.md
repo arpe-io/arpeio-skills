@@ -78,6 +78,7 @@ PostgreSQL extension, `pg_fastbcp`, can also run FastBCP from SQL (PG 15–18).
 | Variable | Default | Purpose |
 |---|---|---|
 | `FASTBCP_DBPARTITION_TARGET_MODE` | `CHUNK` | `CHUNK` / `HIVE` file layout for `DBPartition` (1.3+) |
+| `FASTBCP_TTU_PATH` | not set | Linux, `adbc_teradata` legacy-port logon only (1.4+): Teradata Tools and Utilities client directory, e.g. `/opt/teradata/client/20.00`. Give the versioned client folder, not just `libcliv2.so` |
 | `FASTBCP_RGSIZE` | `max(2^18/sqrt(degree), 64000)` | Parquet row group size (rows). Lower it to reduce memory |
 | `FASTBCP_DATEFORMAT` | `yyyy-MM-dd HH:mm:sszzz` | Default date-to-string format |
 | `FASTBCP_CLOUD_ISBUFFERED` | `False` | Buffer cloud uploads through a temp file (recommended for ADLS/OneLake) |

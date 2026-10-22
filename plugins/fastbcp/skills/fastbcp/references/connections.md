@@ -15,11 +15,15 @@
 | `hana` | SAP HANA | |
 | `hanaexport` | SAP HANA using native `EXPORT` | Shown in the docs' examples only; recommended there for large datasets |
 | `teradata` | Teradata | |
+| `adbc_teradata` (1.4+) | Teradata via ADBC (embedded ArpeTeradata driver); the TLS logon needs no Teradata client software | Parquet only, x64 only; no `--trusted` |
 | `nzsql` | IBM Netezza | |
 | `adbc_netezza` | Netezza / IBM NPS via ADBC (embedded driver, no NZdotNET, works with IBM Cloud NPS) | Parquet only, x64 only |
 | `clickhouse` | ClickHouse | |
 | `odbc` | Any ODBC source (e.g. DB2) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
 | `oledb` | Any OLE DB source | Windows only. Needs `--provider` (e.g. `MSOLEDBSQL`, `NZOLEDB`, `OraOLEDB.Oracle`) |
+
+`msoledbsql`, `nzcopy` and `nzoledb` also appear in the docs (e.g. as `Physical` sources) but not in
+this table; use them only if the user asks.
 
 Embedded drivers (nothing to install): ClickHouse, DuckDB, SQL Server, MySQL, Netezza, Oracle,
 PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb` with its own driver.
@@ -39,7 +43,7 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 |---|---|---|
 | `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias |
 | `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter |
-| `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it |
+| `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it (not with `adbc_teradata`) |
 | `--user` | `-U` | |
 | `--password` | `-X` | Masked in FastBCP logs |
 | `--sourceconnectstring` | `-g` | Full connection string, in double quotes. Overrides every other connection parameter. Works with any connection type |
@@ -90,7 +94,7 @@ Netezza with the OLE DB provider (Windows):
 
 ### ADBC connection strings
 
-With `adbc_mssql`, `adbc_pgsql`, `adbc_oracle` and `adbc_netezza`, `--sourceconnectstring` accepts:
+With `adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza` and `adbc_teradata`, `--sourceconnectstring` accepts:
 
 - native ADO.NET-style `Key=Value;` pairs, translated to driver keys. Keys with no equivalent
   (e.g. `Pooling=false`) are dropped with a warning;
@@ -112,6 +116,25 @@ Per-driver notes:
   `adbc.arpepgsql.numeric_special=null` to the connection string to read it as `NULL`.
 - **adbc_oracle**: resolves TNS aliases through `tnsnames.ora` (from `TNS_ADMIN`, then
   `$ORACLE_HOME/network/admin`). Encryption and integrity are negotiated (`accepted`). Override with
-  the `FASTBCP_ADBC_ENCRYPTION` / `FASTBCP_ADBC_DATA_INTEGRITY` env vars.
+  the `FASTBCP_ADBC_ENCRYPTION` / `FASTBCP_ADBC_DATA_INTEGRITY` env vars. Since 1.4 (ArpeOracle 0.4.1):
+  TCPS verifies the server certificate by default; Kerberos forwards the TGT only with
+  `krb5_forward=true` and requires mutual authentication; token and OAuth2 logons require TCPS.
 - **adbc_mssql**: an `ApplicationIntent` key in the connection string is passed to the driver.
-  Supports up to 1024 columns (since 1.2).
+  Supports up to 1024 columns (since 1.2). Reads `sql_variant` and the SQL Server 2025 `JSON` type
+  since 1.4 (ArpeMSSQL 0.7.6).
+- **adbc_teradata** (1.4+): same SQL dialect as `teradata`.
+  - Connect with `--server "host[:port]"` (legacy port, default `1025`), `--user`, `--password`, optional
+    `--database`, or a connection string in the Teradata provider spelling: `Server`/`Host`/`Data Source`,
+    `Port`/`DBS Port`/`Port Number`, `Database`/`Initial Catalog`, `User Id`/`User Name`/`UID`,
+    `Password`/`PWD`, `SSL Mode`, `HTTPS Port`, `SSL CA`, `SSL CA Path`, `TMODE`, `Login Timeout`,
+    `Query Timeout`, `TTU Path`. Explicit `adbc.arpeteradata.*` keys win.
+  - `--trusted` is refused (`-C adbc_teradata does not support trusted (-A) authentication`).
+  - Logon: by default (`sslmode=prefer`) TLS on the HTTPS port 443, with no Teradata client software.
+    If the server has no TLS, or with `SSL Mode=disable`, it uses the legacy port 1025, which needs the
+    customer's Teradata Tools and Utilities (TTU, CLIv2). Linux: TTU is found through `FASTBCP_TTU_PATH`
+    (see environment.md), then a `ttu/` or `TeradataToolsAndUtilitiesBase/` folder next to the binary.
+    Windows: the driver finds `wincli32.dll` itself.
+  - Logon mechanisms (`logmech`): `LDAP`, `JWT`, `KRB5`, `TDNEGO`. JWT and Kerberos work over TLS without TTU.
+  ```
+  --connectiontype adbc_teradata --sourceconnectstring "Server=td-host;Port=1025;User Id=FastUser;Password=FastPassword;SSL Mode=disable"
+  ```
