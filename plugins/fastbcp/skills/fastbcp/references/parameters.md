@@ -1,4 +1,4 @@
-# FastBCP – CLI parameter reference (1.3)
+# FastBCP – CLI parameter reference (1.4)
 
 Always write **long flags** in generated commands. Short flags are listed only so you can read
 existing scripts.
@@ -7,7 +7,7 @@ existing scripts.
 
 | Long | Short | Value |
 |---|---|---|
-| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb` |
+| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `adbc_teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb` |
 | `--server` | `-S` | `host`, `host:port`, `host,port`, `host\instance`, `host:1521/service`, TNS alias |
 | `--database` | `-I` | database name |
 | `--trusted` | `-A` | switch: integrated auth |
@@ -55,7 +55,7 @@ Details and tokens: [outputs.md](outputs.md).
 
 | Long | Short | Value |
 |---|---|---|
-| `--parallelmethod` | `-m` | `None` (default), `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition`, `Ctid`, `Physloc`, `Rowid`, `NZDataSlice`, `DBPartition` |
+| `--parallelmethod` | `-m` | `None` (default), `Physical`, `RangeId`, `Ntile`, `DBPartition`, `Timepartition`, `DataDriven`, `Random`; deprecated: `Ctid`, `Physloc`, `Rowid`, `NZDataSlice` |
 | `--distributekeycolumn` | `-c` | column or expression; Timepartition: `"(col, year, month)"` |
 | `--paralleldegree` | `-p` | default `-2` |
 | `--datadrivenquery` | – | query listing the DataDriven values |
@@ -75,6 +75,7 @@ Details: [parallelism.md](parallelism.md).
 | `--license "<path\|url\|content>"` | License location or content (default: `FastBCP.lic` next to the binary) |
 | `--nobanner` | Hide the banner (scripts / CI) |
 | `--version` | Print version |
+| `--help` (also `-?`) | Print the usage and exit with code 0 (1.4+; before, `--help` exited with code 1 after parameter errors) |
 
 Some doc examples use the aliases `--method` (for `--parallelmethod`), `--degree` (for
 `--paralleldegree`) and `--licence`. Generate the canonical names.

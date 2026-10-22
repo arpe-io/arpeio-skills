@@ -1,6 +1,6 @@
 {
   "name": "fastbcp",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Build, explain and troubleshoot FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more to CSV/Parquet/JSON/Excel, locally or to S3, Azure, GCS and OneLake.",
   "author": {
     "name": "arpe.io",
