@@ -24,7 +24,8 @@ References (load only what you need):
 | Complete commands | [references/examples.md](references/examples.md) |
 | Known behaviours, pitfalls, common errors | [references/troubleshooting.md](references/troubleshooting.md) |
 
-Official docs: https://migratorxpress.arpe.io/latest/
+Official docs: https://migratorxpress-docs.arpe.io/latest/ (full text, for agents:
+https://migratorxpress-docs.arpe.io/latest/llms-full.txt)
 
 ## Three databases, one credentials file
 

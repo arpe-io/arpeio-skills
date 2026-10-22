@@ -93,5 +93,5 @@ SQL Server tracking DBs the primary-key rebuild is the slow part.
 | 40 | Some tables failed a task (`PARTIAL_FAILURE`): fix and `--resume <run_id>` |
 | 41 | Every table failed (`ALL_JOBS_FAILED`) |
 
-Schedulers: 10–29 need a fix before retrying; 40–41 can be retried with `--resume`. Before 0.7.2, failed tables
+Schedulers: 10–29 need a fix before retrying; 40–41 can be retried with `--resume`. Before 0.7.3, failed tables
 and invalid task lists exited 0; scripts relying on that now see non-zero codes.

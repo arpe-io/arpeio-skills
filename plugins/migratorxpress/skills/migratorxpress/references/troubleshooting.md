@@ -4,7 +4,7 @@
 
 | Behaviour | What to do |
 |---|---|
-| Failed tables make the run exit 40 (some) or 41 (all) since 0.7.2; before, it exited 0 | Schedulers: treat 40/41 as retryable with `--resume <run_id>` (the log prints the command) |
+| Failed tables make the run exit 40 (some) or 41 (all) since 0.7.3; before, it exited 0 | Schedulers: treat 40/41 as retryable with `--resume <run_id>` (the log prints the command) |
 | Differences found by `diff` don't fail a table and don't change the exit code | Read the diff results (`v_sourcetargetdiff`) or the log |
 | PostgreSQL target: schema, table and column names are lower-cased | Expect `sales.orders` for `Sales.Orders`; don't `--resume` a PostgreSQL-target run started before 0.7.2 |
 | PostgreSQL target: `copy_fk`, `--fk_mode`, `--task_list all` not supported; `--cci_threshold` / `--aci_threshold` ignored | Use `translate create transfer diff copy_pk copy_ak`; create foreign keys manually |
