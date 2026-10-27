@@ -1,10 +1,10 @@
-# LakeXpress – Commands and flags (0.4.10)
+# LakeXpress – Commands and flags (0.6.0)
 
 ```text
 LakeXpress [--version] [--no_banner] COMMAND [SUBCOMMAND] [OPTIONS]
 ```
 
-Options go **after** the command. `--version` prints e.g. `LakeXpress 0.4.10 (build 2026-09-24T12:04:58Z)`.
+Options go **after** the command. `--version` prints e.g. `LakeXpress 0.6.0 (build 2026-10-26T20:28:13Z)`.
 
 | Command | Purpose |
 |---|---|
@@ -60,7 +60,7 @@ Required: `--auth_file`, `--lxdb_auth_id`, `--source_db_auth_id`, and at `sync` 
 | Output | `--output_dir PATH` | – | Local folder; relative paths are saved as absolute (0.4.9+) |
 | | `--target_storage_id ID` | – | Cloud storage entry (S3, GCS, Azure, OneLake) |
 | | `--sub_path PATH` | – | Folder between the storage base path and the schema folders; also the `{subpath}` token |
-| Engine | `--fastbcp_dir_path PATH` | bundled `engine/` | Folder containing FastBCP (full edition) |
+| Engine | `--fastbcp_dir_path PATH` | bundled `engine/` | Folder containing another FastBCP |
 | | `--n_jobs N` | `1` | Tables exported at the same time (also publishing workers) |
 | | `--fastbcp_p N` (`-p`) | `1` | FastBCP processes per table, used when > 1 and the table has ≥ `--large_table_threshold` rows |
 | | `--large_table_threshold N` | `100000` | Smaller tables are exported in one stream |

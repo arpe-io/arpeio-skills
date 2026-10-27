@@ -1,6 +1,6 @@
 {
   "name": "lakexpress",
-  "version": "0.4.10",
+  "version": "0.6.0",
   "description": "Build, explain and troubleshoot LakeXpress pipelines: credentials file, LakeXpress DB, sync configurations, incremental syncs and resume, exporting Oracle, PostgreSQL, SQL Server, MySQL, MariaDB, SAP HANA and Teradata tables to Parquet on local disk, S3, GCS, Azure or OneLake, and publishing them to Snowflake, Databricks, Fabric, BigQuery, Redshift, MotherDuck, AWS Glue or DuckLake.",
   "author": {
     "name": "arpe.io",

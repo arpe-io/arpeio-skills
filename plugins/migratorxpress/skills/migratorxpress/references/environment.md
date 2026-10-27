@@ -3,9 +3,14 @@
 ## Install
 
 - Native binaries, no runtime needed: `MigratorXpress` (Linux x64) and `MigratorXpress.exe` (Windows x64).
-  Download / trial from arpe.io (https://arpe.io/get-trial?product=MigratorXpress).
-- Trial distributions ship FastTransfer in an `engine/` folder next to the binary.
-- `./MigratorXpress --version`, `./MigratorXpress --help`.
+  One package per platform, `MigratorXpress-Full-linux-x64.zip` / `MigratorXpress-Full-win-x64.zip`, for the
+  trial and for subscriptions (the license file makes the difference). Trial:
+  https://arpe.io/get-trial?product=MigratorXpress emails the download link and a 30-day license file.
+  Unzip anywhere, then save the license (see License).
+- The package ships FastTransfer in an `engine/` folder next to the binary (FastTransfer 0.18.1 in
+  MigratorXpress 0.8.0).
+- `./MigratorXpress --version` (ends with `migratorxpress 0.8.0`), `./MigratorXpress --help`.
+- Install guide: https://migratorxpress-docs.arpe.io/latest/installation
 
 ## FastTransfer
 
@@ -16,6 +21,8 @@ All data movement is done by FastTransfer (≥ 0.15.0, version checked at startu
 - Parallelism: `--n_jobs` tables at once; inside a table ≥ `--ft_large_table_th` rows, `--fasttransfer_p`
   streams with Ctid (PostgreSQL source), Rowid (Oracle) or NZDataSlice (Netezza). SQL Server sources: one stream
   per table.
+- Licensed by the MigratorXpress license: MigratorXpress passes FastTransfer its license blocks with
+  `--license` (masked in the log, private temporary file removed when it exits). No `FastTransfer.lic` needed.
 - `--quiet_ft` hides FastTransfer output from the console (still logged to the file).
 - FastTransfer is started without a shell, so passwords with `"`, `$`, `` ` ``, `%` or spaces reach it unchanged;
   passwords and connection strings are masked in the logged command and output.
@@ -40,11 +47,16 @@ Lookup order (first found wins):
 1. env `MIGRATORXPRESS_LICENSE` (license text)
 2. `--license "<text>"`
 3. `--license_file <path>`
-4. `~/.migratorxpress/license.lic` (Linux/macOS) or `%APPDATA%\MigratorXpress\license.lic` (Windows)
+4. `~/.migratorxpress/license.lic` (Linux) or `%APPDATA%\MigratorXpress\license.lic` (Windows)
 5. `./license.lic` (current directory)
-6. Trial: 30 days from the binary's build date
 
-An invalid or expired license stops the run with exit code 13 (no fallback to trial).
+No license, or an invalid or expired one: exit 13 (`No MigratorXpress licence found. Get a free 30-day trial
+licence at https://arpe.io…`). `--help` and `--version` work without one. There is no build-date trial
+since 0.8.0: the free trial is a 30-day license file.
+
+The license file also carries the FastTransfer and ADBC driver blocks: keep it whole, as delivered. A
+license issued before 2026-10-26 has no FastTransfer block: warning, FastTransfer uses its own
+`FastTransfer.lic`.
 
 ## Tracking (migration) database
 
@@ -79,7 +91,7 @@ SQL Server tracking DBs the primary-key rebuild is the slow part.
 - At the end: `RUN SUMMARY: n/m tables succeeded` with the failed tables and tasks, and, when tables failed,
   the `--resume <run_id>` command to retry them.
 
-## Exit codes (0.7.3)
+## Exit codes (0.8.0)
 
 | Code | Meaning |
 |---|---|
@@ -88,7 +100,7 @@ SQL Server tracking DBs the primary-key rebuild is the slow part.
 | 2 | Command-line error (missing required flag, invalid choice or boolean, bad `--project`) |
 | 10 | Configuration error, before any connection: invalid auth entry or mode, auth id not in the file, unsupported target / tracking DB type or source → target pair (Netezza → PostgreSQL), `copy_*` with a Netezza source, `copy_fk` with a PostgreSQL target, ODBC prerequisites missing |
 | 12 | Connection to source, target or tracking DB failed |
-| 13 | License invalid or expired |
+| 13 | License missing, invalid or expired |
 | 20 | Validation error: task list missing / invalid / combined with `--resume`, invalid `--fk_mode`, `--target_db_name` not matching the target entry |
 | 40 | Some tables failed a task (`PARTIAL_FAILURE`): fix and `--resume <run_id>` |
 | 41 | Every table failed (`ALL_JOBS_FAILED`) |

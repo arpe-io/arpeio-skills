@@ -1,9 +1,9 @@
-# LakeXpress – Examples (0.4.10)
+# LakeXpress – Examples (0.6.0)
 
 Entry names (`lxdb_postgres`, `source_postgres`, `source_mssql`, `source_oracle`, `s3_01`, `gcs_01`,
 `azure_01`, `onelake_01`, `snowflake_prod`, …) are keys of `credentials.json` (credentials.md). Linux
-syntax; PowerShell at the end. Trial edition (bundled FastBCP); with the full edition add
-`--fastbcp_dir_path <folder>` to `config create`. Every `sync` takes `--auth_file`, `--lxdb_auth_id` and
+syntax; PowerShell at the end. FastBCP is bundled in `engine/` and the license is saved in
+its default place (environment.md). Every `sync` takes `--auth_file`, `--lxdb_auth_id` and
 `--sync_id` (`<SYNC_ID>` = the id printed by `config create`, or the one you chose).
 
 ## First export: PostgreSQL schema → local Parquet

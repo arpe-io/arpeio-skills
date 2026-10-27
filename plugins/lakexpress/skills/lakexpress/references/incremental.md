@@ -98,7 +98,7 @@ next sync exports it as a new baseline.
 
 ## Tips
 
-- Use a PostgreSQL, SQL Server or SQLite LakeXpress DB (with DuckDB, 0.4.10 does not save the incremental
+- Use a PostgreSQL, SQL Server or SQLite LakeXpress DB (with DuckDB, 0.6.0 still does not save the incremental
   tables).
 - Duplicates after re-running: use `!upsert` (where supported) or deduplicate at query time.
 - To track both inserts and updates on different columns, use two configurations.
