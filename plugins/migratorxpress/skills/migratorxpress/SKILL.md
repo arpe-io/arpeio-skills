@@ -12,7 +12,7 @@ step and table is tracked in a **migration tracking database**, which makes runs
 Goal: produce a **credentials file** (if needed) and **one correct, copy-pasteable command** for the user's
 OS and shell. Never invent hosts, credentials, schema or database names: ask.
 
-Facts below reflect MigratorXpress **0.7.3** (checked against the v0.7.3 code; the 0.7 docs describe v0.7.1).
+Facts below reflect MigratorXpress **0.8.0** (checked against the v0.8.0 code).
 References (load only what you need):
 
 | Need | File |
@@ -55,10 +55,13 @@ When you can run commands, run `./MigratorXpress --version` (Windows: `.\Migrato
 before building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected
 exit code).
 
-- **0.7.3** → use this skill as is.
-- **Older** → several hard rules below changed in 0.7.2 / 0.7.3 (exit codes 40/41, PostgreSQL target,
-  `--drop_tables_if_exists false`, startup validation): check `./MigratorXpress --help` and the version
-  notes in environment.md and troubleshooting.md, or suggest upgrading.
+- **0.8.0** → use this skill as is.
+- **Older** → several hard rules below changed: before 0.8.0 the binary ran 30 days from its build date
+  without a license, came as a Trial (FastTransfer bundled) and a Full package, and skipped unchanged
+  Oracle / Netezza tables by default (`--without_xid` to reload); 0.7.2 / 0.7.3 changed exit codes 40/41,
+  the PostgreSQL target, `--drop_tables_if_exists false` and startup validation. Check
+  `./MigratorXpress --help` and the version notes in environment.md and troubleshooting.md, or suggest
+  upgrading.
 - **Newer** → this skill may miss new options or changed behaviour: confirm anything you rely on in
   `./MigratorXpress --help` and the official docs above, and say that you did.
 
@@ -80,7 +83,12 @@ exit code).
 7. **Output** – the credentials JSON (placeholders for secrets) and one fenced command, then a short summary
    with assumptions and what to check afterwards (exit code, RUN SUMMARY, tracking tables).
 
-## Hard rules (0.7.3)
+## Hard rules (0.8.0)
+
+- **A license file is required**, also for the free trial (it is a 30-day license file emailed by
+  https://arpe.io/get-trial?product=MigratorXpress). Without one every run exits 13. Default place:
+  `~/.migratorxpress/license.lic` (Linux), `%APPDATA%\MigratorXpress\license.lic` (Windows); other ways
+  in environment.md.
 
 - **Exactly one of `--task_list` / `--resume RUN_ID`.** `--resume` needs the run id (`YYYYMMDD-<uuid4>`) and
   still needs `--auth` and the three auth ids; schema flags are not needed on resume. Keep
@@ -92,10 +100,13 @@ exit code).
   (exit 10). `copy_fk` and `--fk_mode` only with a **SQL Server target** – with a PostgreSQL target, `copy_fk`
   and therefore `--task_list all` are rejected (exit 10): use an explicit list such as
   `translate create transfer diff copy_pk copy_ak`.
-- **`--drop_tables_if_exists`** drops and recreates existing target tables in `create` (and forces
-  `--without_xid`). Default off; `true` / bare flag enables, `false` disables. Use it only when the user wants
+- **`--drop_tables_if_exists`** drops and recreates existing target tables in `create` (and ignores
+  `--with_xid`). Default off; `true` / bare flag enables, `false` disables. Use it only when the user wants
   tables recreated, and confirm with them first.
 - `--load_mode truncate` (default) empties each target table before loading; `append` adds rows.
+- **Every table is transferred on every run.** `--with_xid` (Oracle, Netezza sources only) skips a table
+  whose source `MAX(ROWID)` / `MAX(CREATEXID)` is unchanged since the last `--with_xid` run and whose
+  target holds rows. `--without_xid` is deprecated and ignored (warning).
 - **PostgreSQL target**: schema, table and column names are created **lower case** (`Sales.Orders` →
   `sales.orders`); `--cci_threshold` / `--aci_threshold` are ignored. Columns of type SQL Server
   `GEOGRAPHY` / `GEOMETRY` or PostgreSQL `ARRAY` / user-defined fail `translate` (that table fails, others go on).
@@ -113,6 +124,10 @@ exit code).
 |---|---|---|
 | Linux (bash, zsh) | `./MigratorXpress` | `\` |
 | Windows PowerShell | `.\MigratorXpress.exe` | `` ` `` |
+
+The package bundles FastTransfer in `engine/`, found automatically, and the MigratorXpress license also
+licenses it: don't add `--fasttransfer_dir_path` or a `FastTransfer.lic` unless the user wants another
+FastTransfer.
 
 ## Example
 

@@ -3,20 +3,27 @@
 ## Install
 
 - Native binaries: `LakeXpress` (Linux x64, `chmod +x LakeXpress`) and `LakeXpress.exe` (Windows x64).
-  Trial: https://arpe.io/get-trial?product=LakeXpress. Unzip anywhere.
-- `./LakeXpress --version` → `LakeXpress 0.4.10 (build 2026-09-24T12:04:58Z)` (build date shown since
-  0.4.9). `./LakeXpress --help`, `./LakeXpress config create --help`.
-- Archive: the binary, `README.txt`, SBOM files (CycloneDX JSON/XML + SHA-256), and in the **trial**
-  edition `engine/FastBCP[.exe]`.
+  One package per platform, `LakeXpress-Full-linux-x64.zip` / `LakeXpress-Full-win-x64.zip`, for the
+  trial and for subscriptions (the license file makes the difference). Trial:
+  https://arpe.io/get-trial?product=LakeXpress emails the download link and a 30-day license file.
+  Unzip anywhere, then save the license (see License).
+- `./LakeXpress --version` → `LakeXpress 0.6.0 (build 2026-10-26T20:28:13Z)`. `./LakeXpress --help`,
+  `./LakeXpress config create --help`.
+- Archive: the binary, `README.txt`, SBOM files (CycloneDX JSON/XML + SHA-256) and
+  `engine/FastBCP[.exe]`.
+- Install guide: https://lakexpress-docs.arpe.io/latest/installation
 
 ## FastBCP
 
-- Trial edition: FastBCP bundled in `engine/`, found automatically.
-- Full edition: FastBCP is not bundled. Install it, pass its folder with `config create
-  --fastbcp_dir_path <folder>` (saved in the configuration; `sync --fastbcp_dir_path` overrides it). Its
-  license must be named exactly `FastBCP.lic` next to the FastBCP binary (rename the downloaded
-  `SUBSCRIPTION-FastBCP-….lic`).
-- No FastBCP found: `FastBCP directory path is required for export operations` (exit 10).
+- Bundled in `engine/` (FastBCP 1.4.0 in LakeXpress 0.6.0), found automatically. The LakeXpress license
+  licenses it: LakeXpress passes FastBCP its license blocks with `--license` (masked in the log, private
+  temporary file removed at the end of the run). No `FastBCP.lic` needed.
+- Another FastBCP: `config create --fastbcp_dir_path <folder>` (saved in the configuration; `sync
+  --fastbcp_dir_path` overrides it).
+- Checked before each export (`sync`, `'sync[export]'`, `run`; not `'sync[publish]'`): not configured or no
+  executable in the folder → exit 30 (`FastBCP directory path is required for export operations` /
+  `FastBCP executable not found in …`); older than 0.30.4 → exit 34; another version than 1.4.0, or an
+  unreadable one → warning only.
 - `--quiet_fbcp` keeps FastBCP output out of the LakeXpress log.
 
 ## License
@@ -26,10 +33,19 @@ Lookup order:
 1. env `LAKEXPRESS_LICENSE` (license text; for CI/containers)
 2. `--license "<text>"`
 3. `--license_file <path>`
-4. `~/.lakexpress/license.lic` (Linux/macOS), `%APPDATA%/LakeXpress/license.lic` (Windows), `./license.lic`
-5. Trial: 30 days from the **build date** of the binary. Trial downloads are rebuilt weekly (≥ 23 days left).
+4. `~/.lakexpress/license.lic` (Linux), `%APPDATA%\LakeXpress\license.lic` (Windows), `./license.lic`
 
-Invalid or expired license: exit 13.
+No license, or an invalid or expired one: exit 13 (`No LakeXpress licence found. Get a free 30-day trial
+licence at https://arpe.io…`). `--help`, `--version` and command help work without one. There is no
+build-date trial since 0.6.0: the free trial is a 30-day license file.
+
+The license file also carries the FastBCP and ADBC driver blocks: keep it whole, as delivered.
+
+- License issued before 2026-10-26 (no FastBCP block): warning, FastBCP uses its own `FastBCP.lic`.
+- Source with `use_adbc: true` and no ADBC block (nor `ARPEIO_ADBC_LICENCE` / `ARPEIO_ADBC_LICENCE_FILE`
+  / `arpeio.adbc.license_file`): exit 13 before the export.
+- FastBCP rejects its license (FastBCP exit 99/100): reported in the job error; ask for an updated
+  license.
 
 ## LakeXpress DB
 
@@ -66,22 +82,27 @@ WHERE j.run_id = '<RUN_ID>' AND j.job_status = 'failed';
 - The run id is printed at start (`Created export run: <run_id>`); the end shows `RUN SUMMARY` (or
   `RESUME SUMMARY`) `Export: n/m tables succeeded`, the failed tables and their errors.
 
-## Exit codes (0.4.10)
+## Exit codes (0.6.0)
+
+Before 0.6.0 the binary always exited 0: check the log with older versions.
 
 | Code | Meaning |
 |---|---|
 | 0 | Success. Also: no table matched the filters (warning), `'sync[publish]'` with no publish target, `lxdb drop` / `truncate` / `release-locks` / `config delete` without `--confirm` (dry run) |
 | 1 | Unexpected error, or `'sync[publish]'` failed |
 | 2 | Command-line error (unknown option, invalid choice, missing required flag) |
-| 10 | Configuration error: credentials file missing or invalid for `sync`, unknown id, unset `$env{}`, sync not found or already existing, invalid `sync_id`, invalid incremental spec, no output destination, FastBCP not found, invalid publish pattern, resume problems, run already running, `status` without `--sync_id` / `--run_id`, `cleanup` duration invalid |
+| 10 | Configuration error: credentials file missing or invalid for `sync`, unknown id, unset `$env{}`, sync not found or already existing, invalid `sync_id`, invalid incremental spec, no output destination, invalid publish pattern, resume problems, run already running, `status` without `--sync_id` / `--run_id`, `cleanup` duration invalid |
 | 12 | Connection failed: source (`sync`), or LakeXpress DB (`lxdb`, `config create`; with `sync` a LakeXpress DB connection failure exits 10) |
-| 13 | License invalid or expired |
+| 13 | License missing, invalid or expired; ADBC source without an ADBC license block |
 | 21 | Credentials file not found (`lxdb`, `config`, `status`, `cleanup`; `sync` reports 10) |
+| 30 | FastBCP not configured, or no executable in the configured folder (10 before 0.5.0) |
 | 31 | `lxdb init` / `drop` / `truncate` failed |
+| 34 | FastBCP older than 0.30.4 |
 | 40 | Some tables failed (export or publish): fix, then `sync --resume` |
 
-Codes 11, 20, 22, 30, 32–33, 41–47 and 50 are defined in the product but not returned by 0.4.10
-commands (a run where every table fails also exits 40). Schedulers: 10–29 need a fix; 40 can be retried
+`run` returns the specific code of a configuration error (1 before 0.5.0). The other codes of the
+docs' list (https://lakexpress-docs.arpe.io/latest/reference/exit-codes) were not seen returned by these
+commands in 0.4.10 (a run where every table fails also exited 40). Schedulers: 10–29 need a fix; 40 can be retried
 with `--resume`.
 
 ## Scheduling

@@ -15,7 +15,7 @@
 
 Table discovery always runs first (internal step).
 
-## Constraint copy support (0.7.3)
+## Constraint copy support (0.8.0)
 
 | Source → target | `copy_pk`, `copy_ak` | `copy_fk` |
 |---|---|---|

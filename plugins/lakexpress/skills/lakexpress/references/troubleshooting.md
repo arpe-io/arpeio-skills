@@ -1,4 +1,4 @@
-# LakeXpress – Troubleshooting and known 0.4.10 behaviours
+# LakeXpress – Troubleshooting and known 0.6.0 behaviours
 
 ## Known behaviours to plan around
 
@@ -24,8 +24,9 @@
 | Snowflake external tables don't see new files | `ALTER EXTERNAL TABLE … REFRESH;`; the storage `directory` must equal the stage URL |
 | `--generate_metadata` with OneLake storage can write wrong paths in the CDM files | Check them, or omit the flag |
 | DuckLake publishes tables one at a time, whatever `--n_jobs` | Expected |
+| Incremental (query) export of a large table with `--fastbcp_p` > 1: a physical method (`Ctid`, `Rowid`, `Physloc`) is replaced by `None` with a warning (0.5.0+; before, the export failed) | For parallel incremental exports use a key-based method (`Ntile`, `RangeId`) in `--fastbcp_table_config` |
 
-## Doc errors (0.4 docs vs 0.4.10 code)
+## Doc errors (found in the 0.4 docs against the 0.4.10 code)
 
 | Docs say | Actually |
 |---|---|
@@ -37,7 +38,6 @@
 | Fabric: `fabric_target` "omitted or set to anything else" → Warehouse | Omitted or `"warehouse"` → Warehouse; use exactly `"lakehouse"` for the Lakehouse |
 | Azure recipe: `"directory": "abfss://datalake.dfs.core.windows.net/exports"` | Needs the container: `abfss://<container>@<account>.dfs.core.windows.net/exports` |
 | Daily snapshot recipes put `$(date +%Y%m%d)` in `--sub_path` of `config create` | The value is fixed when the configuration is created |
-| No exit code table | See environment.md (0, 1, 2, 10, 12, 13, 21, 31, 40) |
 
 ## Common errors
 
@@ -50,8 +50,16 @@
 | `Sync 'x' already exists` (exit 10) | Choose another `--sync_id` or delete the old configuration |
 | `Invalid sync_id format` (exit 10) | 1–64 letters, digits, `_`, `-` |
 | `Invalid incremental type 'timestamp'` (exit 10) | Use `datetime` (or `date`, `int`, `bigint`, `auto`) |
-| `FastBCP directory path is required for export operations` (exit 10) | Full edition: `--fastbcp_dir_path` (or `sync --fastbcp_dir_path`); trial: keep `engine/` next to the binary |
-| FastBCP license error in the log | Full edition: `FastBCP.lic` next to the FastBCP binary |
+| `No LakeXpress licence found. Get a free 30-day trial licence at https://arpe.io…` (exit 13) | Save the emailed license as `~/.lakexpress/license.lic` / `%APPDATA%\LakeXpress\license.lic`, or pass `--license_file` (environment.md) |
+| License expired (exit 13) | Trial over (30 days) or subscription ended: a new license file from arpe.io, same place; no reinstall |
+| `FastBCP directory path is required for export operations` / `FastBCP executable not found in …` (exit 30; 10 before 0.5.0) | Keep `engine/` next to the binary, or pass `--fastbcp_dir_path` (or `sync --fastbcp_dir_path`) |
+| Exit 34 | FastBCP older than 0.30.4: use the bundled one |
+| FastBCP license error in the job error (FastBCP exit 99/100) | License issued before 2026-10-26 (no FastBCP block) and no `FastBCP.lic`: request an updated license |
+| ADBC source (`use_adbc: true`) stops with exit 13 | The license has no ADBC driver block: request an updated license, or set `ARPEIO_ADBC_LICENCE_FILE` |
+| Every command exits 0 even on failure | LakeXpress before 0.6.0: read the log, or upgrade |
+| `auth_mode: connection_string` source: FastBCP `Unknown argument found` (before 0.5.0) | Fixed in 0.5.0; or use `classic` |
+| Teradata schema pattern (`SALES%`) matches nothing (before 0.5.0) | Fixed in 0.5.0; or list the databases |
+| SQLite LakeXpress DB: every table exported single-threaded whatever `--fastbcp_p` (before 0.5.0) | Fixed in 0.5.0 |
 | `Failed to connect to source database` (exit 12) | Host, port, `database` (Oracle: service name), firewall, credentials; `--log_level DEBUG` |
 | PostgreSQL LakeXpress DB: `permission denied for schema public` | Make the user owner of the database (`ALTER DATABASE lakexpress_log OWNER TO …`) or `GRANT CREATE ON SCHEMA public` |
 | SQL Server LakeXpress DB: `User does not have permission to perform this action. (15247)` | Add the user to `db_owner` in that database |

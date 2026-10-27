@@ -1,4 +1,4 @@
-# MigratorXpress – Troubleshooting and known 0.7.3 behaviours
+# MigratorXpress – Troubleshooting and known 0.8.0 behaviours
 
 ## Known behaviours to plan around
 
@@ -36,11 +36,13 @@
 | Oracle `ORA-12154` / `ORA-28000` | Wrong service name / account locked |
 | FastTransfer not found or too old | Put FastTransfer ≥ 0.15.0 in `engine/` next to the binary or pass `--fasttransfer_dir_path`; check `FastTransfer --version` |
 | Large tables transfer as one stream | `--fasttransfer_p` must be > 1 and the estimated row count ≥ `--ft_large_table_th`; estimates may be stale (`--compute_nbrows true`). SQL Server sources never split a table |
-| Oracle/Netezza tables skipped on a re-run | The transaction id / ROWID watermark skips unchanged tables; use `--without_xid` to force reloading |
+| Oracle/Netezza tables skipped on a re-run (`skipped (--with_xid): …`) | Remove `--with_xid`. Before 0.8.0 the skip was on by default: use `--without_xid`, or upgrade |
 | Existing target tables not recreated | `create` keeps existing tables; pass `--drop_tables_if_exists true` to drop and recreate them |
 | Target tables emptied | `--load_mode truncate` is the default; use `--load_mode append` to keep rows |
 | Tracking DB from 0.6.x | Upgraded automatically on the first 0.7 run, or with `--upgrade_migdb`; back it up first |
-| License error (exit 13) | Check the lookup order ([environment.md](environment.md)); an invalid license does not fall back to trial |
+| `No MigratorXpress licence found. Get a free 30-day trial licence at https://arpe.io…` (exit 13) | Save the emailed license as `~/.migratorxpress/license.lic` / `%APPDATA%\MigratorXpress\license.lic`, or pass `--license_file` ([environment.md](environment.md)) |
+| License expired (exit 13) | Trial over (30 days) or subscription ended: a new license file from arpe.io, same place; no reinstall |
+| FastTransfer license error | License issued before 2026-10-26 (no FastTransfer block) and no `FastTransfer.lic`: request an updated license |
 | Tracking DB unreachable or not writable | The tracking DB is mandatory: check `--migration_db_auth_id` and CREATE TABLE rights there |
 
 ## Diagnostics

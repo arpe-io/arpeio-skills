@@ -1,4 +1,4 @@
-# MigratorXpress – CLI parameter reference (0.7.3)
+# MigratorXpress – CLI parameter reference (0.8.0)
 
 Generate long flags. Short forms exist only for a few flags (`-a`, `-r`, `-p`, `-i`, `-e`, `-min`, `-max`, `-f`).
 
@@ -46,10 +46,11 @@ Exception: `--upgrade_migdb` needs only `--auth` and `--migration_db_auth_id`.
 | Flag | Default | Notes |
 |---|---|---|
 | `--load_mode` | `truncate` | `truncate` empties each target table before loading; `append` adds rows |
-| `--drop_tables_if_exists [BOOL]` | `false` | Drops and recreates existing target tables in `create`. `true` / `yes` / `1` or the bare flag enable it, `false` / `no` / `0` disable it, other values are rejected (exit 2). When enabled, also forces `--without_xid`. A table whose `translate` failed is neither created nor dropped |
+| `--drop_tables_if_exists [BOOL]` | `false` | Drops and recreates existing target tables in `create`. `true` / `yes` / `1` or the bare flag enable it, `false` / `no` / `0` disable it, other values are rejected (exit 2). When enabled, `--with_xid` is ignored (warning). A table whose `translate` failed is neither created nor dropped |
 | `--basic_diff` | off | `diff` compares only row and column counts (skips per-column statistics) |
 | `--compute_nbrows true\|false` | `false` | Exact `COUNT(*)` instead of catalog estimates |
-| `--without_xid` | off | Don't use the transaction id / ROWID watermark (Netezza, Oracle) that skips unchanged tables on re-runs |
+| `--with_xid` | off | Oracle / Netezza sources: skip a table whose `MAX(ROWID)` / `MAX(CREATEXID)` is unchanged since the last `--with_xid` run and whose target holds rows (log: `skipped (--with_xid): …`). No effect (warning) for PostgreSQL / SQL Server sources. Before 0.8.0 this skip was on by default |
+| `--without_xid` | – | Deprecated, ignored with a warning (the skip is off by default since 0.8.0) |
 
 ## Performance and FastTransfer
 
@@ -89,5 +90,5 @@ rejected there).
 | `--log_dir PATH` | current directory | Created if missing |
 | `--no_banner`, `--no_progress`, `--quiet_ft` | off | Hide banner / progress display / FastTransfer console output (still in the log file) |
 | `--license TEXT` | – | License content |
-| `--license_file PATH` | – | License file |
+| `--license_file PATH` | – | License file (default places: environment.md) |
 | `--version`, `--help` | – | |

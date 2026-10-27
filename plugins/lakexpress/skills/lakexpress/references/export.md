@@ -89,7 +89,7 @@ the value is then fixed in the configuration.
 
 `--generate_metadata` writes Common Data Model files (`manifest.json`, `<table>.cdm.json`) next to the
 Parquet files; `--manifest_name` names the manifest (default: schema or database name). With OneLake
-storage the generated paths may be wrong in 0.4.10.
+storage the generated paths may be wrong (seen in 0.4.10).
 
 ## Monitoring a run (LakeXpress DB)
 

@@ -12,7 +12,7 @@ where, where to publish) in the **LakeXpress DB**, then `sync` runs it, as often
 Goal: produce a **credentials file** (if needed) and **correct, copy-pasteable commands** for the
 user's OS and shell. Never invent hosts, credentials, schema, bucket or account names: ask.
 
-Facts below reflect LakeXpress **0.4.10** (docs checked against the v0.4.10 code). References (load only
+Facts below reflect LakeXpress **0.6.0** (docs checked against the v0.6.0 code). References (load only
 what you need):
 
 | Need | File |
@@ -43,13 +43,14 @@ Each `*_id` is a top-level key of the JSON file passed with `--auth_file`. Any s
 ## Check the installed version
 
 When you can run commands, run `./LakeXpress --version` (Windows: `.\LakeXpress.exe --version`); it
-prints e.g. `LakeXpress 0.4.10 (build 2026-09-24T12:04:58Z)`. Otherwise ask for the version when it
+prints e.g. `LakeXpress 0.6.0 (build 2026-10-26T20:28:13Z)`. Otherwise ask for the version when it
 matters (a rejected option, an unexpected exit code).
 
-- **0.4.10** → use this skill as is.
-- **Older** → some behaviours differ (relative `--output_dir` before 0.4.9, SQL Server `pymssql` fix in
-  0.4.8, Linux OpenSSL crash in 0.4.5–0.4.6: see troubleshooting.md); check `./LakeXpress <command>
-  --help`, or suggest upgrading.
+- **0.6.0** → use this skill as is.
+- **Older** → some behaviours differ: before 0.6.0 the binary always exited 0 whatever happened, ran
+  30 days from its build date without a license, and came as a Trial (FastBCP bundled) and a Full
+  package (FastBCP installed separately); before 0.5.0 FastBCP not found exited 10, and several export
+  bugs were not fixed (troubleshooting.md). Check `./LakeXpress <command> --help`, or suggest upgrading.
 - **Newer** → this skill may miss new options or changed behaviour: confirm anything you rely on in
   `--help` and https://lakexpress-docs.arpe.io/latest/llms-full.txt (whole documentation in one file),
   and say that you did.
@@ -72,7 +73,12 @@ matters (a rejected option, an unexpected exit code).
    the `sync` command with `<SYNC_ID>` (or the `--sync_id` chosen), then a short summary with
    assumptions and what to check (exit code, `status`).
 
-## Hard rules (0.4.10)
+## Hard rules (0.6.0)
+
+- **A license file is required**, also for the free trial (it is a 30-day license file emailed by
+  https://arpe.io/get-trial?product=LakeXpress). Without one every command except `--help` / `--version`
+  exits 13. Default place: `~/.lakexpress/license.lic` (Linux), `%APPDATA%\LakeXpress\license.lic`
+  (Windows); other ways in environment.md.
 
 - **Options go after the command** (`LakeXpress sync --log_level DEBUG …`); only `--version` and
   `--no_banner` may come before it. Quote `'sync[export]'` and `'sync[publish]'`.
@@ -104,8 +110,8 @@ matters (a rejected option, an unexpected exit code).
 | Linux (bash, zsh) | `./LakeXpress` | `\` |
 | Windows PowerShell | `.\LakeXpress.exe` | `` ` `` |
 
-Trial archives bundle FastBCP in `engine/`. The full edition does not: add `--fastbcp_dir_path` to
-`config create` (FastBCP needs its own `FastBCP.lic` next to its binary).
+The package bundles FastBCP in `engine/`, found automatically, and the LakeXpress license also
+licenses it: don't add `--fastbcp_dir_path` or a `FastBCP.lic` unless the user wants another FastBCP.
 
 ## Example
 
@@ -133,7 +139,8 @@ PostgreSQL schema `sales` to S3, published as Snowflake internal tables, 4 table
 ## After a run
 
 - **Exit code**: `0` success (also when no table matched: check the log), `40` some tables failed
-  (export or publish), `10` configuration error, `12` connection error, `13` license (environment.md).
+  (export or publish), `10` configuration error, `12` connection error, `13` license, `30` / `34`
+  FastBCP not found / too old (environment.md).
 - `status --sync_id <SYNC_ID>` (add `--verbose` for every run); the log `lx_YYYYMMDD_HHMMSS_<run_id>.log`
   ends with `RUN SUMMARY` / `Export: n/m tables succeeded` and the failed tables.
 - To retry failed tables: `sync --sync_id <SYNC_ID> --resume` (latest incomplete run, or add

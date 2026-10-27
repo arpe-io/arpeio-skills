@@ -1,4 +1,4 @@
-# MigratorXpress – Examples (0.7.3)
+# MigratorXpress – Examples (0.8.0)
 
 All examples assume a `credentials.json` with entries `oracle_prod` (Oracle, database `ORCLPDB1`),
 `mssql_source` (SQL Server, `SourceDB`), `pg_source` (PostgreSQL, `sales`), `mssql_target` (SQL Server,
