@@ -53,7 +53,10 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 4. **Format options** – only those relevant to the format (CSV: delimiter, quotes, date format…; Parquet:
    compression). See outputs.md.
 5. **Parallelism** – only for large tables. Pick the method with the table below.
-6. **Ops** – `--runid`, `--loglevel`, `--nobanner` for scripts, license location.
+6. **Ops** – `--runid`, `--loglevel`, `--nobanner` for scripts, and the license: a license file is
+   required for every run, **including the free trial**. Leave `--license` out only when the file is
+   `FastBCP.lic` next to the executable; otherwise add `--license "<path|url>"` (or the content from a
+   variable). When you leave it out, say so in the summary ("assumes `FastBCP.lic` next to the binary").
 7. **Output** – one fenced code block for the right shell, then a one-line summary and any assumption made.
 
 ## Choosing a parallel method

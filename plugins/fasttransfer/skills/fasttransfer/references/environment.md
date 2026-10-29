@@ -36,7 +36,12 @@ Teradata. Others need an ODBC or OLE DB driver installed.
   ./FastTransfer ... --license "/opt/fasttransfer/FastTransfer.lic"
   ./FastTransfer ... --license "$FT_LICENSE"          # content held in a shell variable
   ```
-- The trial mode is reported in the log ("trial mode will end on …"). A license is needed after the trial.
+- **A license file is always required, including for the free trial** (the trial request at
+  https://arpe.io/get-trial?product=FastTransfer sends one). There is no license-free trial mode. The
+  only way to run without `--license` is a file named exactly `FastTransfer.lic` in the executable's
+  directory.
+- License errors: check the file name and location (or the `--license` value) and the expiry date, then
+  contact arpe.io.
 
 ## Docker
 

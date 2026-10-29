@@ -53,7 +53,10 @@ error).
 4. **Load behaviour** – `--loadmode Append` (default) or `Truncate`; `--mapmethod Position` (default)
    or `Name`; optional `--batchsize`.
 5. **Parallelism** – only for large volumes (docs: more than about 1M cells). Pick the method below.
-6. **Ops** – `--runid`, `--loglevel`, `--nobanner` for scripts, license location.
+6. **Ops** – `--runid`, `--loglevel`, `--nobanner` for scripts, and the license: a license file is
+   required for every run, **including the free trial**. Leave `--license` out only when the file is
+   `FastTransfer.lic` next to the executable; otherwise add `--license "<path|url>"` (or the content from a
+   variable). When you leave it out, say so in the summary ("assumes `FastTransfer.lic` next to the binary").
 7. **Output** – one fenced code block for the right shell, then a one-line summary and any assumption made.
 
 ## Choosing the target connection type
