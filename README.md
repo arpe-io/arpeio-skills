@@ -44,7 +44,11 @@ Then just ask, e.g. *"Export dbo.Orders from SQL Server to Parquet on S3 with Fa
 
 ### Updating
 
-Refresh the marketplace, then update each installed plugin:
+Plugins do not update on their own: auto-update is off by default for third-party marketplaces such
+as `arpe-io`. To turn it on, open `/plugin`, go to **Marketplaces**, select `arpe-io` and enable
+auto-update; Claude Code then checks for new versions at startup.
+
+To update manually, refresh the marketplace, then update each installed plugin:
 
 ```
 /plugin marketplace update arpe-io
