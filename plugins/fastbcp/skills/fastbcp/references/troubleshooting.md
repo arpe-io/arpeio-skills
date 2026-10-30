@@ -49,6 +49,8 @@
 | `<method> method is not available with connection type backup_mssql` | Use `--parallelmethod None` or `Physical` |
 | `backup_mssql` refuses the backup | TDE database, `WITH ENCRYPTION`, QAT_DEFLATE compression, a differential/log-only file, or an incomplete stripe set (the message names the missing stripes) |
 | `backup_mssql` with CSV output, a `WHERE` in `--query`, or credentials | Parquet only; `--query` is limited to `SELECT * \| columns FROM [schema.]table`; no `--user`/`--password`/`--trusted` |
+| `[ArpeMSBackup] catalog of …: catalog page (x:y) not in the backup` (1.5.0) | Fixed in 1.5.1 (ArpeMSBackup 0.1.7): the driver followed a stale pointer to the system tables. Upgrade; the backup itself is fine |
+| `[ArpeMSBackup] … data id … outside the dictionaries of column …` (1.5.0) | Fixed in 1.5.1: clustered columnstore segments with a secondary dictionary (large tables, e.g. TPC-H `lineitem`). Upgrade |
 | `backup_mssql` export differs from the live table | The backup is read as its pages are: the log in the backup is not replayed, and differential/log backups are not applied |
 | Dates lost their time part, or gained one, after an upgrade | The default date format changed in 1.1. Set `--dateformat` explicitly |
 
@@ -95,3 +97,6 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
   token), `FastBCP.lic` looked up in the current directory first, multi-block license files, ADBC license
   forwarded inline, exit codes 99 / 100; ArpeMSSQL 0.7.8 (connections spaced 50 ms, faster 4-way reads),
   ArpeOracle 0.4.3, ArpeTeradata 0.3.5 (`uri` / `connection_string`).
+- **1.5.1**: ArpeMSBackup 0.1.7, two `backup_mssql` fixes: backups whose system tables have a stale
+  first-page pointer (`catalog page (x:y) not in the backup`), and clustered columnstore tables with
+  secondary dictionaries (`data id … outside the dictionaries`). No option or behaviour change.

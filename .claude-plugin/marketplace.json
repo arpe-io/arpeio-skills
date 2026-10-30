@@ -11,7 +11,7 @@
     {
       "name": "fastbcp",
       "source": "./plugins/fastbcp",
-      "description": "Build, explain and troubleshoot FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more to CSV/Parquet/JSON/Excel, locally or to S3, Azure, GCS and OneLake.",
+      "description": "Build, explain and troubleshoot FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more, or straight from SQL Server backup files (.bak) without restoring them, to CSV/Parquet/JSON/Excel, locally or to S3, Azure, GCS and OneLake.",
       "category": "data",
       "keywords": [
         "fastbcp",
@@ -22,7 +22,8 @@
         "etl",
         "sql-server",
         "postgresql",
-        "oracle"
+        "oracle",
+        "sql-server-backup"
       ]
     },
     {

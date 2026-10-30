@@ -1,7 +1,7 @@
 {
   "name": "fastbcp",
-  "version": "1.5.0",
-  "description": "Build, explain and troubleshoot FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more to CSV/Parquet/JSON/Excel, locally or to S3, Azure, GCS and OneLake.",
+  "version": "1.5.1",
+  "description": "Build, explain and troubleshoot FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more, or straight from SQL Server backup files (.bak) without restoring them, to CSV/Parquet/JSON/Excel, locally or to S3, Azure, GCS and OneLake.",
   "author": {
     "name": "arpe.io",
     "url": "https://www.arpe.io"
@@ -9,5 +9,5 @@
   "homepage": "https://fastbcp-docs.arpe.io",
   "repository": "https://github.com/arpe-io/arpeio-skills",
   "license": "MIT",
-  "keywords": ["fastbcp", "export", "bulk", "parquet", "csv", "etl"]
+  "keywords": ["fastbcp", "export", "bulk", "parquet", "csv", "etl", "sql-server-backup"]
 }

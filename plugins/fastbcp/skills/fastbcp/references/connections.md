@@ -155,6 +155,8 @@ backups much larger than the RAM work.
 - `--database`: the **backup file** in that directory, or a pattern (`*`, `?`) matching one backup.
 - **No credentials**: `--user`, `--password`, `--trusted` and `--sourceconnectstring` are not used. The
   driver is licensed like the other ADBC FastDrivers (see environment.md, "License").
+- Use **1.5.1+** (ArpeMSBackup 0.1.7): 1.5.0 fails on some backups and columnstore tables (see
+  troubleshooting.md).
 - Backups read: full and copy-only full, uncompressed or compressed with **MS_XPRESS** or **ZSTD**
   (not QAT_DEFLATE), any `BLOCKSIZE` / `MAXTRANSFERSIZE`, SQL Server **2017, 2019, 2022, 2025**
   (Windows or Linux), several data files and filegroups.
