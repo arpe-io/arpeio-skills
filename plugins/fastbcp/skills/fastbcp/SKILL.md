@@ -31,7 +31,9 @@ https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one fi
 When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
-- **1.5** → use this skill as is.
+- **1.5** → use this skill as is. With `backup_mssql`, recommend **1.5.1**: 1.5.0 fails on some
+  backups (`catalog page (x:y) not in the backup`) and on some columnstore tables
+  (`data id … outside the dictionaries`).
 - **1.4** → `backup_mssql` doesn't exist yet (restore the backup and use `mssql` / `adbc_mssql`).
   `FastBCP.lic` is only looked up next to the executable, not in the current directory.
 - **1.3** → `Physical` and `adbc_teradata` don't exist yet: use the engine method name instead
