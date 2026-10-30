@@ -26,7 +26,7 @@ A `--query` can be added to filter rows.
 | `RangeId` | numeric | any | Ranges between MIN and MAX of the key |
 | `Ntile` | sortable; not necessarily unique | any | Evenly sized buckets (NTILE) on the key |
 | `Timepartition` | `"(datecol, year)"`, `"(datecol, year, month)"`, `"(datecol, year, month, day)"`, `"(datecol, year, week)"` | any | One chunk per time period, biggest periods first (1.4+); writes `year=/month=/day=` style output. Rows with a `NULL` date go to a `<col>=NULL` directory (1.4+) |
-| `Physical` (1.4+) | – | see below | Physical row location of the source engine; strategy picked from the connection type |
+| `Physical` (1.4+) | – | see below | Physical row location of the source engine; strategy picked from the connection type. The only parallel method for `backup_mssql` (1.5+) |
 | `DBPartition` (1.3+) | – | `mssql`, `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `oraodp`, `adbc_oracle`, `mysql`, `teradata`, `adbc_teradata` | One extraction per native partition/subpartition (Teradata: PPI), largest first. Falls back to `None` with a warning when the table is not partitioned, has one partition, or the source is unsupported |
 | `Ctid`, `Physloc`, `Rowid`, `NZDataSlice` | – | – | **Deprecated in 1.4** (warning in the log, removed in 2.0). Use `Physical` |
 
@@ -42,12 +42,18 @@ A `--query` can be added to filter rows.
 | `oraodp`, `adbc_oracle` | `Rowid` (ROWID ranges) |
 | `mssql`, `msoledbsql`, `adbc_mssql` | `Physloc` (`%%physloc%%`) |
 | `nzsql`, `nzcopy`, `nzoledb`, `adbc_netezza` | `NZDataSlice` (one chunk per data slice, shared work queue) |
+| `backup_mssql` (1.5+) | `Pages` (contiguous ranges of data pages, or of rowgroups and delta stores for a clustered columnstore table) |
 
 - Needs `--sourceschema` and `--sourcetable`; a `--query` may add a simple `WHERE` filter.
   `--distributekeycolumn` is not used.
 - Any other connection type stops with an error: `mysql`, `clickhouse`, `hana`, `teradata`,
   `adbc_teradata`, and `odbc`/`oledb` (FastBCP can't tell the engine behind them: use a native type).
 - The log shows the resolved strategy, e.g. `Distribute Method : Physical (Ctid)`.
+- `backup_mssql` accepts only `None` and `Physical`: there is no SQL engine behind a backup file to
+  compute ranges, partitions or keys. Any other method stops with
+  `<method> method is not available with connection type backup_mssql ==> use --parallelmethod None or Physical`.
+  Each `Pages` thread reads its own slice of the shared, already indexed backup; the log shows
+  `Completed Pages Load sub-process <i> : …`.
 - SQL Server: on a rowstore table, chunks are made from the two low bytes of the page id; on a
   clustered columnstore table FastBCP detects it and splits on the row id. Before 1.4, `Physloc` only
   parallelised with an **odd** degree (with 2, 4, 8… one chunk got every row).

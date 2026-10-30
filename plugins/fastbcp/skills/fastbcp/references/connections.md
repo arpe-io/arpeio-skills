@@ -21,6 +21,7 @@
 | `clickhouse` | ClickHouse | |
 | `odbc` | Any ODBC source (e.g. DB2) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
 | `oledb` | Any OLE DB source | Windows only. Needs `--provider` (e.g. `MSOLEDBSQL`, `NZOLEDB`, `OraOLEDB.Oracle`) |
+| `backup_mssql` (1.5+) | SQL Server full backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
 
 `msoledbsql`, `nzcopy` and `nzoledb` also appear in the docs (e.g. as `Physical` sources) but not in
 this table; use them only if the user asks.
@@ -32,7 +33,7 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 
 | | Windows x64 | Linux x64 | Linux ARM64 |
 |---|---|---|---|
-| `adbc_*` | yes | yes | **no** |
+| `adbc_*`, `backup_mssql` | yes | yes | **no** |
 | Teradata, Netezza, SAP HANA | yes | yes | **no** |
 | OLE DB | yes | **no** | **no** |
 | All others | yes | yes | yes |
@@ -41,8 +42,8 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 
 | Long | Short | Notes |
 |---|---|---|
-| `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias |
-| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter |
+| `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias. With `backup_mssql`: the directory of the backups |
+| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file name |
 | `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it (not with `adbc_teradata`) |
 | `--user` | `-U` | |
 | `--password` | `-X` | Masked in FastBCP logs |
@@ -119,10 +120,15 @@ Per-driver notes:
   the `FASTBCP_ADBC_ENCRYPTION` / `FASTBCP_ADBC_DATA_INTEGRITY` env vars. Since 1.4 (ArpeOracle 0.4.1):
   TCPS verifies the server certificate by default; Kerberos forwards the TGT only with
   `krb5_forward=true` and requires mutual authentication; token and OAuth2 logons require TCPS.
+  Since 1.5 (ArpeOracle 0.4.3), `adbc.arpeoracle.data_integrity_types` chooses the Native Network
+  Encryption integrity algorithm.
 - **adbc_mssql**: an `ApplicationIntent` key in the connection string is passed to the driver.
   Supports up to 1024 columns (since 1.2). Reads `sql_variant` and the SQL Server 2025 `JSON` type
-  since 1.4 (ArpeMSSQL 0.7.6).
-- **adbc_teradata** (1.4+): same SQL dialect as `teradata`.
+  since 1.4 (ArpeMSSQL 0.7.6). Since 1.5 (ArpeMSSQL 0.7.8), parallel connections are opened 50 ms apart
+  so SQL Server spreads them over its schedulers (4-way parallel reads up to twice as fast);
+  `ARPEMSSQL_CONNECT_SPACING_MS` changes the gap.
+- **adbc_teradata** (1.4+): same SQL dialect as `teradata`. Since 1.5 (ArpeTeradata 0.3.5), a `uri` or
+  ADO.NET `connection_string` key is parsed, like the other drivers.
   - Connect with `--server "host[:port]"` (legacy port, default `1025`), `--user`, `--password`, optional
     `--database`, or a connection string in the Teradata provider spelling: `Server`/`Host`/`Data Source`,
     `Port`/`DBS Port`/`Port Number`, `Database`/`Initial Catalog`, `User Id`/`User Name`/`UID`,
@@ -138,3 +144,38 @@ Per-driver notes:
   ```
   --connectiontype adbc_teradata --sourceconnectstring "Server=td-host;Port=1025;User Id=FastUser;Password=FastPassword;SSL Mode=disable"
   ```
+
+## SQL Server backup files (`backup_mssql`, 1.5+)
+
+Reads a table straight from a SQL Server **full backup** (`.bak`), without restoring it and without any
+SQL Server instance. The backup is read in place (random access by page), never loaded in memory, so
+backups much larger than the RAM work.
+
+- `--server`: the **directory** holding the backups (`D:\Backups\MSSQL`, `/var/opt/mssql/backup`).
+- `--database`: the **backup file** in that directory, or a pattern (`*`, `?`) matching one backup.
+- **No credentials**: `--user`, `--password`, `--trusted` and `--sourceconnectstring` are not used. The
+  driver is licensed like the other ADBC FastDrivers (see environment.md, "License").
+- Backups read: full and copy-only full, uncompressed or compressed with **MS_XPRESS** or **ZSTD**
+  (not QAT_DEFLATE), any `BLOCKSIZE` / `MAXTRANSFERSIZE`, SQL Server **2017, 2019, 2022, 2025**
+  (Windows or Linux), several data files and filegroups.
+- **Striped backups** (`BACKUP ... TO DISK = a, DISK = b, …`): name every stripe with a pattern
+  (`--database "tpch_*.bak"`) or a `;` list (`"tpch_1.bak;tpch_2.bak;tpch_3.bak"`), in any order. An
+  incomplete set, stripes of different backups or a lone stripe are refused, naming the missing stripes.
+- A file holding several backups (`WITH NOINIT`): the **last full backup** is read. Differential and log
+  backups are not applied; a file without a full backup is refused.
+- Tables: heaps, clustered indexes, partitions, ROW / PAGE compression, LOBs (`(n)varchar(max)`,
+  `varbinary(max)`, `text`, `ntext`, `image`, row-overflow), `xml`, sparse and persisted computed
+  columns, and **clustered columnstore** (archive compression and open delta store included).
+  `sql_variant` is exported as text.
+- **Refused**: backups of **TDE** databases and **encrypted backups** (`WITH ENCRYPTION`).
+- Source: `--sourceschema` + `--sourcetable`, or a `--query` limited to
+  `SELECT * | col1, col2, … FROM [schema.]table` (no filter).
+- Parallel methods: `None` or `Physical` only (`Physical` resolves to `Pages`, see parallelism.md).
+- Consistency: a backup taken while the database was being written is read as its pages are; the
+  transaction log in the backup is not replayed.
+- Parquet types: the `adbc_mssql` mapping, except `time(7)`, `datetime2(7)`, `datetimeoffset(7)` keep
+  100 ns resolution (nanosecond unit, `adbc_mssql` writes microseconds), and `geography` / `geometry`
+  are written as the SQL Server binary serialization (`adbc_mssql` writes WKB + GeoParquet metadata).
+- Speed (docs, degree 8, TPC-H `orders` 15M rows): about 5M rows/s from an uncompressed backup, vs
+  3.3M rows/s with `adbc_mssql` and 1.4M rows/s with `mssql` on the live database; 2.1–2.6M rows/s from
+  MS_XPRESS / ZSTD backups.

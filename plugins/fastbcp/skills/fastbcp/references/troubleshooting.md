@@ -3,11 +3,12 @@
 ## First steps when a run fails
 
 1. Re-run with `--loglevel Debug` and a recognisable `--runid`.
-2. Check `--version` against the features used. `Physical`, `adbc_teradata` and `FASTBCP_TTU_PATH`
-   need 1.4; `DBPartition`, `adbc_oracle`, `adbc_netezza`, `FASTBCP_DBPARTITION_TARGET_MODE` and
+2. Check `--version` against the features used. `backup_mssql` needs 1.5; `Physical`, `adbc_teradata`
+   and `FASTBCP_TTU_PATH` need 1.4; `DBPartition`, `adbc_oracle`, `adbc_netezza`, `FASTBCP_DBPARTITION_TARGET_MODE` and
    `AZURE_STORAGE_SAS_URL` need 1.3.
 3. Test the connection with a tiny query, e.g. `--query "SELECT 1 AS x"` with method `None`.
-4. Treat any non-zero exit code as a failure (the docs list no specific return codes).
+4. Treat any non-zero exit code as a failure. The docs only document the license codes (1.5+):
+   **99** (no license, invalid signature, missing ADBC block) and **100** (expired past grace period).
 
 ## Common mistakes
 
@@ -43,6 +44,12 @@
 | `adbc_teradata` logon fails with `DBCHINI failed`, or on the legacy port | The TTU folder is incomplete or not versioned (`ttu/20.00`, not `ttu/`), or not found: set `FASTBCP_TTU_PATH` (Linux). Or let the server use TLS (port 443), which needs no TTU |
 | `adbc_oracle` fails on TCPS / Kerberos / token logon after upgrading to 1.4 | ArpeOracle 0.4.1 verifies the server certificate, needs `krb5_forward=true` to forward the TGT, and requires TCPS for token / OAuth2 |
 | A script checking `--help`'s exit code breaks after 1.4 | `--help` now exits with 0 (it was 1) |
+| Exit code 99 after upgrading to 1.5, run worked before | 1.5 has no build-date trial: a license file is required. With `adbc_*` / `backup_mssql`, the file also needs an `ARPE ADBC DRIVER LICENCE` block (or set `ARPEIO_ADBC_LICENCE` / `ARPEIO_ADBC_LICENCE_FILE`) |
+| `FastBCP.lic` found in an unexpected place (1.5+) | The current directory is searched before the executable's directory. Pass `--license` explicitly in scheduled jobs |
+| `<method> method is not available with connection type backup_mssql` | Use `--parallelmethod None` or `Physical` |
+| `backup_mssql` refuses the backup | TDE database, `WITH ENCRYPTION`, QAT_DEFLATE compression, a differential/log-only file, or an incomplete stripe set (the message names the missing stripes) |
+| `backup_mssql` with CSV output, a `WHERE` in `--query`, or credentials | Parquet only; `--query` is limited to `SELECT * \| columns FROM [schema.]table`; no `--user`/`--password`/`--trusted` |
+| `backup_mssql` export differs from the live table | The backup is read as its pages are: the log in the backup is not replayed, and differential/log backups are not applied |
 | Dates lost their time part, or gained one, after an upgrade | The default date format changed in 1.1. Set `--dateformat` explicitly |
 
 Parquet type mappings differ between connectors (e.g. `adbc_mssql` vs `mssql`). Check the docs'
@@ -62,6 +69,8 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
 | `--port` | Used in many examples, absent from the parameter page | Accepted; for PostgreSQL `host:port` in `--server` also works |
 | Connection types `hanaexport`, `nzoledb`, `nzcopy` | In examples / release notes, not in the connection type table | Use only if the user asks for them; mention they are not in the main table |
 | Line continuation | A few Linux snippets mix `` ` `` and `\` | bash: `\`; PowerShell: `` ` `` |
+| `Physical` + `--query` on `backup_mssql` | The Physical method says a `--query` may add a simple `WHERE`; the `backup_mssql` pages limit it to `SELECT … FROM [schema.]table` with no filter | No filter with `backup_mssql` |
+| `backup_mssql` example on the Connection Parameters page | `./FastBCP` with a Windows path (`D:\Backups\MSSQL`) | Match the executable and path style to the OS |
 
 ## Version notes
 
@@ -81,3 +90,8 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
   with any parallel method, so compare row counts of older exports; `Timepartition` exports `NULL` dates
   to `<col>=NULL`, no more week duplicates, biggest periods first; `--help` exits with 0; ArpeOracle 0.4.1
   stricter security defaults; `adbc_mssql` reads `sql_variant` and SQL Server 2025 `JSON`.
+- **1.5**: `backup_mssql` (SQL Server `.bak` files without restore, ArpeMSBackup 0.1.6) and the `Pages`
+  strategy behind `Physical`; a license file always required (no build-date trial, no embedded ADBC trial
+  token), `FastBCP.lic` looked up in the current directory first, multi-block license files, ADBC license
+  forwarded inline, exit codes 99 / 100; ArpeMSSQL 0.7.8 (connections spaced 50 ms, faster 4-way reads),
+  ArpeOracle 0.4.3, ArpeTeradata 0.3.5 (`uri` / `connection_string`).

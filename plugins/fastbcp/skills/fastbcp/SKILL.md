@@ -1,6 +1,6 @@
 ---
 name: fastbcp
-description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
+description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak) without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
 ---
 
 # FastBCP
@@ -11,7 +11,7 @@ query) → one output file, or one file per parallel chunk / partition.
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastBCP **1.4**. Detailed references (load only what you need):
+Facts below reflect FastBCP **1.5**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -31,7 +31,9 @@ https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one fi
 When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
-- **1.4** → use this skill as is.
+- **1.5** → use this skill as is.
+- **1.4** → `backup_mssql` doesn't exist yet (restore the backup and use `mssql` / `adbc_mssql`).
+  `FastBCP.lic` is only looked up next to the executable, not in the current directory.
 - **1.3** → `Physical` and `adbc_teradata` don't exist yet: use the engine method name instead
   (`Ctid`, `Rowid`, `Physloc`, `NZDataSlice`, see parallelism.md) and `teradata`. Avoid `Physloc`
   with an even `--paralleldegree` before 1.4 (one chunk did all the work); use an odd degree.
@@ -45,7 +47,8 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 ## Workflow
 
 1. **Source** – engine → `--connectiontype`; server, database, auth (`--trusted`, `--user`/`--password`,
-   or `--sourceconnectstring`). See connections.md.
+   or `--sourceconnectstring`). See connections.md. A SQL Server `.bak` file (1.5+): `backup_mssql`,
+   `--server` = backup directory, `--database` = backup file, no credentials.
 2. **What to export** – `--sourceschema` + `--sourcetable`, or `--query` / `--fileinput`.
    Both can be combined (needed for `{sourceschema}`/`{sourcetable}` tokens or a filtered parallel export).
 3. **Target** – `--directory` (local path, UNC, or cloud URI) + `--fileoutput`.
@@ -55,8 +58,10 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 5. **Parallelism** – only for large tables. Pick the method with the table below.
 6. **Ops** – `--runid`, `--loglevel`, `--nobanner` for scripts, and the license: a license file is
    required for every run, **including the free trial**. Leave `--license` out only when the file is
-   `FastBCP.lic` next to the executable; otherwise add `--license "<path|url>"` (or the content from a
-   variable). When you leave it out, say so in the summary ("assumes `FastBCP.lic` next to the binary").
+   `FastBCP.lic` in the current directory or next to the executable; otherwise add
+   `--license "<path|url>"` (or the content from a variable). When you leave it out, say so in the
+   summary ("assumes `FastBCP.lic` next to the binary"). `adbc_*` and `backup_mssql` also need the ADBC
+   driver block in that file (1.5+; exit code 99 otherwise).
 7. **Output** – one fenced code block for the right shell, then a one-line summary and any assumption made.
 
 ## Choosing a parallel method
@@ -74,6 +79,7 @@ Size the table in **cells** (rows × columns, from catalog statistics); count wi
 | Date column, want `year=…/month=…` folders | `Timepartition` | `"(col, year, month)"` |
 | One file per business value, an expression like `YEAR(col)`, or incremental extracts | `DataDriven` (+ optional `--datadrivenquery`) | column or expression |
 | Engine without `Physical` (Teradata, MySQL, HANA, ClickHouse, ODBC/OLE DB) and no good key | `DataDriven` on a business column | column |
+| SQL Server backup file (`backup_mssql`, 1.5+), any size worth splitting | `Physical` (resolves to `Pages`); only `None` and `Physical` are allowed | – |
 
 Don't recommend `Random` unless asked (kept for compatibility and benchmarks; often the slowest). `Ctid`, `Rowid`,
 `Physloc` and `NZDataSlice` are **deprecated** in 1.4: write `Physical`, which picks the same strategy
@@ -87,7 +93,7 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
 
 - **Use long flags only.** Short flags are inconsistent across doc pages (e.g. `-d` is the CSV
   delimiter, not the database; database is `-I`). Long flags are unambiguous.
-- **ADBC connectors** (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`) write **Parquet only**
+- **ADBC connectors** (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`, `backup_mssql`) write **Parquet only**
   and run on Windows/Linux **x64 only**. If the user wants CSV with ADBC, explain and propose the
   non-ADBC connector.
 - **Merge** (`--merge true`) works for CSV and Parquet only and **not for cloud destinations**.
@@ -99,6 +105,9 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
   and no key column; a `--query` may only add a simple `WHERE`. It fails on `odbc`, `oledb`, `mysql`,
   `clickhouse`, `hana`, `teradata` and `adbc_teradata`.
 - `adbc_teradata` refuses `--trusted`: use `--user`/`--password` (or a connection string).
+- `backup_mssql`: no credentials; a striped backup needs every stripe (pattern or `;` list);
+  `--query` only as `SELECT * | columns FROM [schema.]table`, no `WHERE`; TDE and encrypted backups
+  are refused.
 - Methods `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition` require `--distributekeycolumn`.
   Ask for the column if unknown, never guess one.
 - Parallel methods: the docs say `--sourceschema`/`--sourcetable` are mandatory. Set them whenever the
@@ -154,4 +163,5 @@ SQL Server table to Parquet on Linux, integrated auth, parallel without a key co
   parameter errors and exited with code 1; use `'-?'` there.
 - Add `--loglevel Debug` to diagnose a failing run; reuse the scheduler's run id in `--runid`.
 - For a quick test on a large table, export a filtered `--query` first (e.g. a `WHERE` on a date).
-- Exit code: the docs don't list return codes. Treat any non-zero exit code as a failure and read the log.
+- Exit code: treat any non-zero exit code as a failure and read the log. The documented ones (1.5+) are
+  99 (no or invalid license, or missing ADBC block) and 100 (license expired past its grace period).

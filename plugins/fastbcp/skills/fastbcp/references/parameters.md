@@ -1,4 +1,4 @@
-# FastBCP – CLI parameter reference (1.4)
+# FastBCP – CLI parameter reference (1.5)
 
 Always write **long flags** in generated commands. Short flags are listed only so you can read
 existing scripts.
@@ -7,9 +7,9 @@ existing scripts.
 
 | Long | Short | Value |
 |---|---|---|
-| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `adbc_teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb` |
-| `--server` | `-S` | `host`, `host:port`, `host,port`, `host\instance`, `host:1521/service`, TNS alias |
-| `--database` | `-I` | database name |
+| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `adbc_teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb`, `backup_mssql` (1.5+) |
+| `--server` | `-S` | `host`, `host:port`, `host,port`, `host\instance`, `host:1521/service`, TNS alias. `backup_mssql`: the directory holding the backups |
+| `--database` | `-I` | database name. `backup_mssql`: the backup file, a pattern (`tpch_*.bak`) or stripes separated by `;` |
 | `--trusted` | `-A` | switch: integrated auth |
 | `--user` | `-U` | user name |
 | `--password` | `-X` | password |
@@ -72,10 +72,10 @@ Details: [parallelism.md](parallelism.md).
 | `--settingsfile "<path.json>"` | Logging settings file (Serilog JSON) |
 | `--config "<path.yaml>"` | YAML file holding the run parameters |
 | `--traceparent "<w3c>"` | W3C trace context for OpenTelemetry correlation |
-| `--license "<path\|url\|content>"` | License location or content (default: `FastBCP.lic` next to the binary) |
+| `--license "<path\|url\|content>"` | License location or content (default: `FastBCP.lic` in the current directory, then next to the binary (1.5+; before, next to the binary only)) |
 | `--nobanner` | Hide the banner (scripts / CI) |
 | `--version` | Print version |
-| `--help` (also `-?`) | Print the usage and exit with code 0 (1.4+; before, `--help` exited with code 1 after parameter errors) |
+| `--help` (also `-?`) | Print the usage and exit with code 0 (1.4+; before, `--help` exited with code 1 after parameter errors). Runs without a license, like `--version` |
 
 Some doc examples use the aliases `--method` (for `--parallelmethod`), `--degree` (for
 `--paralleldegree`) and `--licence`. Generate the canonical names.

@@ -25,7 +25,8 @@ Supported OS:
 
 ## License
 
-- Default lookup: `FastBCP.lic` in the same directory as the executable.
+- Default lookup (1.5+): `FastBCP.lic` in the **current directory**, then next to the executable
+  (before 1.5: next to the executable only).
 - Otherwise, `--license` accepts a file path, an HTTP(S) URL, or the license content:
   ```bash
   ./FastBCP ... --license "/opt/fastbcp/FastBCP.lic"
@@ -35,10 +36,19 @@ Supported OS:
   .\FastBCP.exe ... --license $env:FASTBCP_LICENSE
   ```
 - **A license file is always required, including for the free trial** (the trial request at
-  https://arpe.io/get-trial?product=FastBCP sends one). There is no license-free trial mode. The only
-  way to run without `--license` is a file named exactly `FastBCP.lic` in the executable's directory.
-- License errors: check the file name and location (or the `--license` value) and the expiry date, then
-  contact arpe.io.
+  https://arpe.io/get-trial?product=FastBCP sends a 30-day license file). Since 1.5 the build-date trial
+  and the trial token embedded for the ADBC drivers are gone. The only way to run without `--license`
+  is a file named exactly `FastBCP.lic` in the current directory or the executable's directory.
+  `--help` and `--version` run without a license.
+- One license file can hold several blocks (FastBCP, ADBC drivers, other products), each followed by its
+  signature, in any order (1.5+). FastBCP forwards every `ARPE ADBC DRIVER LICENCE` block to the ADBC
+  drivers inline. A driver license of your own (`arpeio.adbc.license` / `LicenseFile` in
+  `--sourceconnectstring`, or `ARPEIO_ADBC_LICENCE` / `ARPEIO_ADBC_LICENCE_FILE`) wins.
+- `adbc_*` and `backup_mssql` need an ADBC driver block (or one of those variables) since 1.5:
+  without it FastBCP stops with exit code 99, no more trial fallback.
+- Exit codes (1.5+): **99** = no license, invalid signature, or missing ADBC block; **100** = license
+  expired past its grace period. Otherwise check the file name and location (or the `--license` value)
+  and the expiry date, then contact arpe.io.
 
 ## Docker
 
@@ -90,6 +100,8 @@ PostgreSQL extension, `pg_fastbcp`, can also run FastBCP from SQL (PG 15–18).
 | `FASTBCP_UID_STRING_CASING` | `lower` | Casing of GUID/UUID values written as strings (`lower` / `upper`) |
 | `FASTBCP_ADBC_BATCHCELLS` | `500000` | ADBC fetch batch size, in cells |
 | `FASTBCP_ADBC_ENCRYPTION`, `FASTBCP_ADBC_DATA_INTEGRITY` | negotiated | Oracle ADBC network encryption / integrity override |
+| `ARPEIO_ADBC_LICENCE`, `ARPEIO_ADBC_LICENCE_FILE` | not set | ADBC driver license content / file; overrides the ADBC block of the FastBCP license file |
+| `ARPEMSSQL_CONNECT_SPACING_MS` | `50` | `adbc_mssql` (1.5+): delay between parallel connections |
 | `FASTBCP_SYSTEMINFO_COLLECT` | `False` | Collect system info during the run |
 | `FASTBCP_PERFORMANCE_COLLECT` | `False` | Collect performance info during the run |
 

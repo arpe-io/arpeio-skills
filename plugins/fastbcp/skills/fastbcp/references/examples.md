@@ -1,6 +1,6 @@
 # FastBCP – Examples
 
-These are taken from the official docs (FastBCP 1.4). Credentials such as `FastUser` / `FastPassword`
+These are taken from the official docs (FastBCP 1.5). Credentials such as `FastUser` / `FastPassword`
 are doc placeholders. In real commands use `--trusted` or shell variables (see SKILL.md, "Secrets").
 
 ## SQL Server → CSV, integrated auth, filtered query (Linux)
@@ -210,6 +210,43 @@ for cloud targets, so `false` is used here.)
 
 `Physical` resolves to `Ctid` on PostgreSQL, `Rowid` on Oracle and `NZDataSlice` on Netezza. On
 FastBCP 1.3 or older, write those names instead.
+
+## SQL Server backup file → Parquet, no restore, Physical (PowerShell, 1.5+)
+
+```powershell
+.\FastBCP.exe `
+  --connectiontype "backup_mssql" `
+  --server "D:\Backups\MSSQL" `
+  --database "tpch_full.bak" `
+  --sourceschema "dbo" `
+  --sourcetable "orders" `
+  --directory "D:\export\{sourcetable}" `
+  --fileoutput "{sourcetable}.parquet" `
+  --parallelmethod "Physical" `
+  --paralleldegree 8
+```
+
+No credentials: `--server` is the backup directory and `--database` the backup file. `Physical`
+resolves to `Pages`.
+
+## Striped SQL Server backup → Parquet (Linux, 1.5+)
+
+```bash
+./FastBCP \
+  --connectiontype "backup_mssql" \
+  --server "/var/opt/mssql/backup" \
+  --database "tpch_*.bak" \
+  --sourceschema "dbo" \
+  --sourcetable "lineitem" \
+  --directory "/export/lineitem" \
+  --fileoutput "lineitem.parquet" \
+  --parallelmethod "Physical" \
+  --paralleldegree 8
+```
+
+The pattern must match every stripe of the backup. A list works too:
+`--database "tpch_1.bak;tpch_2.bak;tpch_3.bak"`. A column subset uses a `--query` with no filter, e.g.
+`--query "SELECT OrderID, CustomerID, OrderDate FROM Sales.Orders"`.
 
 ## Teradata via ADBC → Parquet, Ntile (Linux)
 
