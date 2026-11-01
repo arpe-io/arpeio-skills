@@ -114,7 +114,7 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
   `--query` only as `SELECT * | columns FROM [schema.]table`, no `WHERE`; TDE and encrypted backups
   are refused.
 - `backup_rman`: no credentials; give **every piece** of the backup (every set, every piece of a
-  multi-piece set) by patterns or a `;` list, quoted; full backups only (not incremental level 1);
+  multi-piece set) by patterns or a `;` list, quoted; incremental level 1 sets are refused (level 0 is read);
   `--query` only as `SELECT * | columns FROM [[container.]owner.]table`, no `WHERE`; encrypted sets
   are refused.
 - Methods `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition` require `--distributekeycolumn`.

@@ -199,9 +199,10 @@ instance: on a backup server, from an archive, or for a database that no longer 
 - Backups read: full backup sets (database, tablespaces, datafiles, PDBs), uncompressed or
   `AS COMPRESSED BACKUPSET` with **BASIC**, **LOW**, **MEDIUM** or **HIGH**; Oracle **19c, 21c, 23ai,
   26ai** on Linux x86-64; CDB (root and PDBs) and non-CDB; bigfile and smallfile tablespaces.
-- **Full backups only**: do not give incremental level 1 pieces (they hold the changed blocks only).
+- Incremental backups: a **level 0** backup is read like a full one; **level 1** sets (differential or
+  cumulative, the changed blocks only) are refused, naming the set: give the full or level 0 pieces.
 - Tables: heap tables (chained and migrated rows, more than 255 columns, empty tables).
-- **Refused**, with a message: encrypted backup sets (`SET ENCRYPTION`); partitioned, index-organized,
+- **Refused**, with a message: encrypted backup sets (`SET ENCRYPTION`); incremental level 1 sets; partitioned, index-organized,
   clustered, object, nested, temporary and external tables; tablespaces with a non-default block size;
   backups of big-endian platforms. LOB, `INTERVAL`, `ROWID` / `UROWID`, `JSON`, `VECTOR`, `XMLTYPE` and
   object columns: the table is refused, but its other columns can be exported by listing them in `--query`.
