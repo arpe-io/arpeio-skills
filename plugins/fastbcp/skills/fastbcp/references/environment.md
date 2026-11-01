@@ -44,7 +44,7 @@ Supported OS:
   signature, in any order (1.5+). FastBCP forwards every `ARPE ADBC DRIVER LICENCE` block to the ADBC
   drivers inline. A driver license of your own (`arpeio.adbc.license` / `LicenseFile` in
   `--sourceconnectstring`, or `ARPEIO_ADBC_LICENCE` / `ARPEIO_ADBC_LICENCE_FILE`) wins.
-- `adbc_*` and `backup_mssql` need an ADBC driver block (or one of those variables) since 1.5:
+- `adbc_*`, `backup_mssql` and `backup_rman` need an ADBC driver block (or one of those variables) since 1.5:
   without it FastBCP stops with exit code 99, no more trial fallback.
 - Exit codes (1.5+): **99** = no license, invalid signature, or missing ADBC block; **100** = license
   expired past its grace period. Otherwise check the file name and location (or the `--license` value)
@@ -104,6 +104,7 @@ PostgreSQL extension, `pg_fastbcp`, can also run FastBCP from SQL (PG 15–18).
 | `ARPEMSSQL_CONNECT_SPACING_MS` | `50` | `adbc_mssql` (1.5+): delay between parallel connections |
 | `FASTBCP_SYSTEMINFO_COLLECT` | `False` | Collect system info during the run |
 | `FASTBCP_PERFORMANCE_COLLECT` | `False` | Collect performance info during the run |
+| `FASTBCP_ECOQOS` | not set | Windows (1.5.2+): `1` keeps FastBCP under Windows' power policy. By default FastBCP asks for full speed, so a run without a window (scheduled task, service, orchestrator) is not kept on the efficiency cores (about 3× faster on a hybrid CPU) |
 
 Also read: the cloud provider variables (see [outputs.md](outputs.md)) and, for PostgreSQL,
 `PGUSER`/`PGPASSWORD`/`PGPASSFILE`/`PGSSLROOTCERT`. For Oracle, `TNS_ADMIN`.

@@ -43,13 +43,14 @@ A `--query` can be added to filter rows.
 | `mssql`, `msoledbsql`, `adbc_mssql` | `Physloc` (`%%physloc%%`) |
 | `nzsql`, `nzcopy`, `nzoledb`, `adbc_netezza` | `NZDataSlice` (one chunk per data slice, shared work queue) |
 | `backup_mssql` (1.5+) | `Pages` (contiguous ranges of data pages, or of rowgroups and delta stores for a clustered columnstore table) |
+| `backup_rman` (1.5.2+) | `Pages` (contiguous ranges of the table's blocks) |
 
 - Needs `--sourceschema` and `--sourcetable`; a `--query` may add a simple `WHERE` filter.
   `--distributekeycolumn` is not used.
 - Any other connection type stops with an error: `mysql`, `clickhouse`, `hana`, `teradata`,
   `adbc_teradata`, and `odbc`/`oledb` (FastBCP can't tell the engine behind them: use a native type).
 - The log shows the resolved strategy, e.g. `Distribute Method : Physical (Ctid)`.
-- `backup_mssql` accepts only `None` and `Physical`: there is no SQL engine behind a backup file to
+- `backup_mssql` and `backup_rman` accept only `None` and `Physical`: there is no SQL engine behind a backup file to
   compute ranges, partitions or keys. Any other method stops with
   `<method> method is not available with connection type backup_mssql ==> use --parallelmethod None or Physical`.
   Each `Pages` thread reads its own slice of the shared, already indexed backup; the log shows

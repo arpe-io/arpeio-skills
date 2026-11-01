@@ -1,6 +1,6 @@
 ---
 name: fastbcp
-description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak) without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
+description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak) and Oracle RMAN backup sets without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
 ---
 
 # FastBCP
@@ -33,7 +33,8 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 
 - **1.5** → use this skill as is. With `backup_mssql`, recommend **1.5.1**: 1.5.0 fails on some
   backups (`catalog page (x:y) not in the backup`) and on some columnstore tables
-  (`data id … outside the dictionaries`).
+  (`data id … outside the dictionaries`). `backup_rman` (Oracle RMAN backups) needs **1.5.2**; before,
+  restore the backup and use `oraodp` / `adbc_oracle`.
 - **1.4** → `backup_mssql` doesn't exist yet (restore the backup and use `mssql` / `adbc_mssql`).
   `FastBCP.lic` is only looked up next to the executable, not in the current directory.
 - **1.3** → `Physical` and `adbc_teradata` don't exist yet: use the engine method name instead
@@ -50,7 +51,9 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 
 1. **Source** – engine → `--connectiontype`; server, database, auth (`--trusted`, `--user`/`--password`,
    or `--sourceconnectstring`). See connections.md. A SQL Server `.bak` file (1.5+): `backup_mssql`,
-   `--server` = backup directory, `--database` = backup file, no credentials.
+   `--server` = backup directory, `--database` = backup file, no credentials. Oracle RMAN backup pieces
+   (1.5.2+): `backup_rman`, `--server` = directory of the pieces, `--database` = their names or patterns
+   (`;` separated), no credentials.
 2. **What to export** – `--sourceschema` + `--sourcetable`, or `--query` / `--fileinput`.
    Both can be combined (needed for `{sourceschema}`/`{sourcetable}` tokens or a filtered parallel export).
 3. **Target** – `--directory` (local path, UNC, or cloud URI) + `--fileoutput`.
@@ -81,7 +84,7 @@ Size the table in **cells** (rows × columns, from catalog statistics); count wi
 | Date column, want `year=…/month=…` folders | `Timepartition` | `"(col, year, month)"` |
 | One file per business value, an expression like `YEAR(col)`, or incremental extracts | `DataDriven` (+ optional `--datadrivenquery`) | column or expression |
 | Engine without `Physical` (Teradata, MySQL, HANA, ClickHouse, ODBC/OLE DB) and no good key | `DataDriven` on a business column | column |
-| SQL Server backup file (`backup_mssql`, 1.5+), any size worth splitting | `Physical` (resolves to `Pages`); only `None` and `Physical` are allowed | – |
+| SQL Server backup file (`backup_mssql`, 1.5+) or Oracle RMAN backup (`backup_rman`, 1.5.2+), any size worth splitting | `Physical` (resolves to `Pages`); only `None` and `Physical` are allowed | – |
 
 Don't recommend `Random` unless asked (kept for compatibility and benchmarks; often the slowest). `Ctid`, `Rowid`,
 `Physloc` and `NZDataSlice` are **deprecated** in 1.4: write `Physical`, which picks the same strategy
@@ -95,7 +98,7 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
 
 - **Use long flags only.** Short flags are inconsistent across doc pages (e.g. `-d` is the CSV
   delimiter, not the database; database is `-I`). Long flags are unambiguous.
-- **ADBC connectors** (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`, `backup_mssql`) write **Parquet only**
+- **ADBC connectors** (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`, `backup_mssql`, `backup_rman`) write **Parquet only**
   and run on Windows/Linux **x64 only**. If the user wants CSV with ADBC, explain and propose the
   non-ADBC connector.
 - **Merge** (`--merge true`) works for CSV and Parquet only and **not for cloud destinations**.
@@ -109,6 +112,10 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
 - `adbc_teradata` refuses `--trusted`: use `--user`/`--password` (or a connection string).
 - `backup_mssql`: no credentials; a striped backup needs every stripe (pattern or `;` list);
   `--query` only as `SELECT * | columns FROM [schema.]table`, no `WHERE`; TDE and encrypted backups
+  are refused.
+- `backup_rman`: no credentials; give **every piece** of the backup (every set, every piece of a
+  multi-piece set) by patterns or a `;` list, quoted; full backups only (not incremental level 1);
+  `--query` only as `SELECT * | columns FROM [[container.]owner.]table`, no `WHERE`; encrypted sets
   are refused.
 - Methods `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition` require `--distributekeycolumn`.
   Ask for the column if unknown, never guess one.

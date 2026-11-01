@@ -229,6 +229,25 @@ FastBCP 1.3 or older, write those names instead.
 No credentials: `--server` is the backup directory and `--database` the backup file. `Physical`
 resolves to `Pages`.
 
+## Oracle RMAN backup → Parquet, no restore, Physical (Linux, 1.5.2+)
+
+```bash
+./FastBCP \
+  --connectiontype "backup_rman" \
+  --server "/backup/rman/orcl" \
+  --database "full_*" \
+  --sourceschema "SALES" \
+  --sourcetable "ORDERS" \
+  --directory "/export/{sourcetable}" \
+  --fileoutput "{sourcetable}.parquet" \
+  --parallelmethod "Physical" \
+  --paralleldegree 8
+```
+
+No credentials: `--server` is the directory of the backup pieces and `--database` their names or patterns.
+Several patterns: `--database "db_*;ctl_*"` (quoted). A table of another PDB, a column subset (a LOB column
+left out): `--query "SELECT EMPLOYEE_ID, LAST_NAME FROM HRPDB.HR.EMPLOYEES"`. `Physical` resolves to `Pages`.
+
 ## Striped SQL Server backup → Parquet (Linux, 1.5+)
 
 ```bash
