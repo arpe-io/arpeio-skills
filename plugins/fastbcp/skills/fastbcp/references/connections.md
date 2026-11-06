@@ -22,6 +22,7 @@
 | `odbc` | Any ODBC source (e.g. DB2) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
 | `oledb` | Any OLE DB source | Windows only. Needs `--provider` (e.g. `MSOLEDBSQL`, `NZOLEDB`, `OraOLEDB.Oracle`) |
 | `backup_mssql` (1.5+) | SQL Server full backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
+| `backup_rman` (1.5.2+) | Oracle RMAN backup sets, read without restoring them and without an Oracle instance (embedded ArpeOraBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
 
 `msoledbsql`, `nzcopy` and `nzoledb` also appear in the docs (e.g. as `Physical` sources) but not in
 this table; use them only if the user asks.
@@ -33,7 +34,7 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 
 | | Windows x64 | Linux x64 | Linux ARM64 |
 |---|---|---|---|
-| `adbc_*`, `backup_mssql` | yes | yes | **no** |
+| `adbc_*`, `backup_mssql`, `backup_rman` | yes | yes | **no** |
 | Teradata, Netezza, SAP HANA | yes | yes | **no** |
 | OLE DB | yes | **no** | **no** |
 | All others | yes | yes | yes |
@@ -42,8 +43,8 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 
 | Long | Short | Notes |
 |---|---|---|
-| `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias. With `backup_mssql`: the directory of the backups |
-| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file name |
+| `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias. With `backup_mssql`: the directory of the backups; with `backup_rman`: the directory of the backup pieces |
+| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file name; with `backup_rman`: the piece names or patterns, `;` separated |
 | `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it (not with `adbc_teradata`) |
 | `--user` | `-U` | |
 | `--password` | `-X` | Masked in FastBCP logs |
@@ -181,3 +182,51 @@ backups much larger than the RAM work.
 - Speed (docs, degree 8, TPC-H `orders` 15M rows): about 5M rows/s from an uncompressed backup, vs
   3.3M rows/s with `adbc_mssql` and 1.4M rows/s with `mssql` on the live database; 2.1–2.6M rows/s from
   MS_XPRESS / ZSTD backups.
+
+## Oracle RMAN backup sets (`backup_rman`, 1.5.2+)
+
+Reads a table straight from **RMAN backup sets**, without restoring them and without any Oracle
+instance: on a backup server, from an archive, or for a database that no longer exists.
+
+- `--server`: the **directory** holding the backup pieces (`/backup/rman/orcl`, `D:\Backups\RMAN`).
+- `--database`: the **piece names or patterns** (`*`, `?`) in that directory, several separated by `;`,
+  quoted: `--database "full_*"`, `--database "db_*;ctl_*"`. Give every piece of the backup (the pieces of
+  a multi-piece set, the sets of several channels or of `FILESPERSET`), in any order. An incomplete set
+  is refused, naming the missing piece. With several backups of the same files, the most recent copy
+  of each datafile is read.
+- **No credentials**: `--user`, `--password`, `--trusted` and `--sourceconnectstring` are not used. The
+  driver is licensed like the other ADBC FastDrivers (see environment.md, "License").
+- Backups read: full backup sets (database, tablespaces, datafiles, PDBs), uncompressed or
+  `AS COMPRESSED BACKUPSET` with **BASIC**, **LOW**, **MEDIUM** or **HIGH**; Oracle **19c, 21c, 23ai,
+  26ai** on Linux x86-64; CDB (root and PDBs) and non-CDB; bigfile and smallfile tablespaces.
+- Incremental backups: a **level 0** backup is read like a full one; **level 1** sets (differential or
+  cumulative, the changed blocks only) are refused, naming the set: give the full or level 0 pieces.
+- Tables: heap tables (chained and migrated rows, more than 255 columns, empty tables).
+- **Refused**, with a message: encrypted backup sets (`SET ENCRYPTION`); incremental level 1 sets; partitioned, index-organized,
+  clustered, object, nested, temporary and external tables; tablespaces with a non-default block size;
+  backups of big-endian platforms. LOB, `INTERVAL`, `ROWID` / `UROWID`, `JSON`, `VECTOR`, `XMLTYPE` and
+  object columns: the table is refused, but its other columns can be exported by listing them in `--query`.
+- Source: `--sourceschema` (the owner) + `--sourcetable`, or a `--query` limited to
+  `SELECT * | col1, col2, … FROM [[container.]owner.]table` (no filter). A table of the root or of a PDB
+  other than the only one: `CONTAINER.OWNER.TABLE` in `--query`.
+- Parallel methods: `None` or `Physical` only (`Physical` resolves to `Pages`: ranges of the table's
+  blocks, see parallelism.md).
+- Consistency: a backup taken with the database open is read as its blocks are (redo not applied); a
+  backup taken with the database mounted is consistent.
+- Parquet types: the `adbc_oracle` mapping (NUMBER(p≤18,0) → int64, NUMBER(p,s) → decimal, NUMBER without
+  precision → exact decimal text, DATE / TIMESTAMP(n) → timestamp with the unit of n, text → UTF-8).
+- Speed (docs, a 1M-row table, degree 8, open included): under 1 s from an uncompressed, LOW, MEDIUM or
+  HIGH backup; 6–7 s from a BASIC backup, or a HIGH backup of Oracle 19c.
+
+  ```bash
+  ./FastBCP \
+    --connectiontype backup_rman \
+    --server "/backup/rman/orcl" \
+    --database "full_*" \
+    --sourceschema "SALES" \
+    --sourcetable "ORDERS" \
+    --directory "/export/orders" \
+    --fileoutput "orders.parquet" \
+    --parallelmethod Physical \
+    --paralleldegree 8
+  ```

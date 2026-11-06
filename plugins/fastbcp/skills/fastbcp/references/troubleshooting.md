@@ -52,6 +52,12 @@
 | `[ArpeMSBackup] catalog of …: catalog page (x:y) not in the backup` (1.5.0) | Fixed in 1.5.1 (ArpeMSBackup 0.1.7): the driver followed a stale pointer to the system tables. Upgrade; the backup itself is fine |
 | `[ArpeMSBackup] … data id … outside the dictionaries of column …` (1.5.0) | Fixed in 1.5.1: clustered columnstore segments with a secondary dictionary (large tables, e.g. TPC-H `lineitem`). Upgrade |
 | `backup_mssql` export differs from the live table | The backup is read as its pages are: the log in the backup is not replayed, and differential/log backups are not applied |
+| `<method> method is not available with connection type backup_rman` | Use `--parallelmethod None` or `Physical` |
+| `backup_rman` refuses the backup | Encrypted backup set (`SET ENCRYPTION`), an incremental level 1 set (`is an incremental level 1 backup`: give the full or level 0 pieces only), an incomplete multi-piece set (the message names the missing piece), a non-default block size tablespace, or a big-endian platform's backup |
+| `backup_rman` refuses the table | Partitioned / IOT / clustered / object / temporary / external table, or a LOB / `INTERVAL` / `ROWID` / `JSON` / `VECTOR` column (the message names it): export the other columns with `--query "SELECT col1, col2 FROM OWNER.TABLE"` |
+| `backup_rman`: table not found | Give every piece of the backup (`--database "db_*;ctl_*"`, quoted); a table of the root or of another PDB is `CONTAINER.OWNER.TABLE` in `--query` |
+| `backup_rman` export differs from the live table | An online backup is read as its blocks are (redo not applied), and only up to the full or level 0 backup given (level 1 changes are not applied) |
+| A scheduled run on Windows is much slower than in a console (1.5.1 and older) | Windows 11 keeps programs without a window on the efficiency cores. Fixed in 1.5.2 (FastBCP asks for full speed); `FASTBCP_ECOQOS=1` restores the old behaviour |
 | Dates lost their time part, or gained one, after an upgrade | The default date format changed in 1.1. Set `--dateformat` explicitly |
 
 Parquet type mappings differ between connectors (e.g. `adbc_mssql` vs `mssql`). Check the docs'
@@ -100,3 +106,7 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
 - **1.5.1**: ArpeMSBackup 0.1.7, two `backup_mssql` fixes: backups whose system tables have a stale
   first-page pointer (`catalog page (x:y) not in the backup`), and clustered columnstore tables with
   secondary dictionaries (`data id … outside the dictionaries`). No option or behaviour change.
+- **1.5.2**: `backup_rman` (Oracle RMAN backup sets without restore or Oracle, ArpeOraBackup 0.1.1,
+  AdbcFileExport 0.5.6): uncompressed and BASIC / LOW / MEDIUM / HIGH compressed, Oracle 19c, 21c, 23ai,
+  26ai; `Physical` resolves to `Pages`. On Windows, FastBCP opts out of the efficiency cores at start
+  (`FASTBCP_ECOQOS=1` keeps the Windows policy).

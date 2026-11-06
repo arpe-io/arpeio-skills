@@ -7,9 +7,9 @@ existing scripts.
 
 | Long | Short | Value |
 |---|---|---|
-| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `adbc_teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb`, `backup_mssql` (1.5+) |
-| `--server` | `-S` | `host`, `host:port`, `host,port`, `host\instance`, `host:1521/service`, TNS alias. `backup_mssql`: the directory holding the backups |
-| `--database` | `-I` | database name. `backup_mssql`: the backup file, a pattern (`tpch_*.bak`) or stripes separated by `;` |
+| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `adbc_teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb`, `backup_mssql` (1.5+), `backup_rman` (1.5.2+) |
+| `--server` | `-S` | `host`, `host:port`, `host,port`, `host\instance`, `host:1521/service`, TNS alias. `backup_mssql`: the directory holding the backups. `backup_rman`: the directory of the backup pieces |
+| `--database` | `-I` | database name. `backup_mssql`: the backup file, a pattern (`tpch_*.bak`) or stripes separated by `;`. `backup_rman`: the piece names or patterns, `;` separated (`"full_*;ctl_*"`) |
 | `--trusted` | `-A` | switch: integrated auth |
 | `--user` | `-U` | user name |
 | `--password` | `-X` | password |
