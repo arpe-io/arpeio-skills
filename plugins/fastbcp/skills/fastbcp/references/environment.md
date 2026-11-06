@@ -98,13 +98,14 @@ PostgreSQL extension, `pg_fastbcp`, can also run FastBCP from SQL (PG 15–18).
 | `FASTBCP_TMPPATH` | system temp | Temp dir for buffered uploads |
 | `FASTBCP_CLOUD_MAXUPLOADTHREAD_PER_STREAM` | 8 (method None) / 2 | Upload threads per output stream |
 | `FASTBCP_UID_STRING_CASING` | `lower` | Casing of GUID/UUID values written as strings (`lower` / `upper`) |
+| `FASTBCP_INDEX_DIR` | driver default | `backup_mssql`, `backup_rman` (1.6.6+): directory of the backup index, for an account without a usable home. Must be fully qualified: on Windows, `C:index` and `\index` stop the run at startup. Need not exist. `index_dir` in `--sourceconnectstring` wins. Default: `%LOCALAPPDATA%\ArpeMSBackup\index` and `ArpeOraBackup\index` on Windows, `$XDG_CACHE_HOME/arpemsbackup/index` or `~/.cache/arpemsbackup/index` (same with `arpeorabackup`) on Linux |
 | `FASTBCP_ADBC_BATCHCELLS` | `500000` | ADBC fetch batch size, in cells |
 | `FASTBCP_ADBC_ENCRYPTION`, `FASTBCP_ADBC_DATA_INTEGRITY` | negotiated | Oracle ADBC network encryption / integrity override |
 | `ARPEIO_ADBC_LICENCE`, `ARPEIO_ADBC_LICENCE_FILE` | not set | ADBC driver license content / file; overrides the ADBC block of the FastBCP license file |
 | `ARPEMSSQL_CONNECT_SPACING_MS` | `50` | `adbc_mssql` (1.5+): delay between parallel connections |
 | `FASTBCP_SYSTEMINFO_COLLECT` | `False` | Collect system info during the run |
 | `FASTBCP_PERFORMANCE_COLLECT` | `False` | Collect performance info during the run |
-| `FASTBCP_ECOQOS` | not set | Windows (1.5.2+): `1` keeps FastBCP under Windows' power policy. By default FastBCP asks for full speed, so a run without a window (scheduled task, service, orchestrator) is not kept on the efficiency cores (about 3× faster on a hybrid CPU) |
+| `FASTBCP_ECOQOS` | not set | Windows (1.6.0+): `1` keeps FastBCP under Windows' power policy. By default FastBCP asks for full speed, so a run without a window (scheduled task, service, orchestrator) is not kept on the efficiency cores (about 3× faster on a hybrid CPU) |
 
 Also read: the cloud provider variables (see [outputs.md](outputs.md)) and, for PostgreSQL,
 `PGUSER`/`PGPASSWORD`/`PGPASSFILE`/`PGSSLROOTCERT`. For Oracle, `TNS_ADMIN`.

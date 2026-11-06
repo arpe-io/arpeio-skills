@@ -47,8 +47,18 @@
 | Exit code 99 after upgrading to 1.5, run worked before | 1.5 has no build-date trial: a license file is required. With `adbc_*` / `backup_mssql`, the file also needs an `ARPE ADBC DRIVER LICENCE` block (or set `ARPEIO_ADBC_LICENCE` / `ARPEIO_ADBC_LICENCE_FILE`) |
 | `FastBCP.lic` found in an unexpected place (1.5+) | The current directory is searched before the executable's directory. Pass `--license` explicitly in scheduled jobs |
 | `<method> method is not available with connection type backup_mssql` | Use `--parallelmethod None` or `Physical` |
-| `backup_mssql` refuses the backup | TDE database, `WITH ENCRYPTION`, QAT_DEFLATE compression, a differential/log-only file, or an incomplete stripe set (the message names the missing stripes) |
-| `backup_mssql` with CSV output, a `WHERE` in `--query`, or credentials | Parquet only; `--query` is limited to `SELECT * \| columns FROM [schema.]table`; no `--user`/`--password`/`--trusted` |
+| `backup_mssql` refuses the backup | QAT_DEFLATE compression, a differential/log-only file, or an incomplete stripe set (the message names the missing stripes). Before 1.6.6: a TDE database or `WITH ENCRYPTION` too |
+| `[ArpeMSBackup] …: its data cannot be read without the private key of certificate 0x…` (1.6.6+) | Encrypted or TDE backup: give the key file with `--sourceuser`. The thumbprint is the one `sys.certificates` shows on the server |
+| `[ArpeMSBackup] …: the private key given does not open it: it needs the private key of certificate 0x…` | Not the right certificate. A backup `WITH ENCRYPTION` of a TDE database can need two: separate the files with `;` |
+| `[ArpeMSBackup] …: the private key is protected by a password` | Give it with `--sourcepassword`. If a non-ASCII PVK password is reported as wrong, export the key with an ASCII password |
+| `… holds a certificate without its private key` | `--sourceuser` names a `.cer` / `.crt` with no `.pvk`, `.pfx`, `.p12`, `.key` or `.pem` of the same name next to it |
+| `page … is under the previous database encryption key` | Uncompressed backup of a TDE database taken while its key was being changed. Take it again after the change, or `WITH COMPRESSION` |
+| `truncated or damaged backup` (1.6.6+) | The data of the backup ends past the end of the file: copy it again. It failed before too, later in the export |
+| An export hangs on a damaged or crafted `.bak` (1.6.5 and older) | Fixed in 1.6.6: it now stops with an error |
+| `Backup index not saved: …` (1.6.6+) | A warning, the export still runs, but every run indexes the backup again. Set `FASTBCP_INDEX_DIR` to a writable directory, or change the `index_dir` option if `--sourceconnectstring` sets one |
+| `FASTBCP_INDEX_DIR` stops the run at startup (Windows) | The path must be fully qualified: `C:\index` or `\\server\share\index`, not `C:index` or `\index` |
+| `backup_mssql` refuses the table: `json` or `vector(n, float16)` column (1.6.5+) | List the other columns in `--query`, or use `adbc_mssql` |
+| `backup_mssql` with CSV output, a `WHERE` in `--query`, or credentials | Parquet only; `--query` is limited to `SELECT * \| columns FROM [schema.]table`; no `--trusted`, and `--user` / `--password` are the certificate key of an encrypted backup, not a login |
 | `[ArpeMSBackup] catalog of …: catalog page (x:y) not in the backup` (1.5.0) | Fixed in 1.5.1 (ArpeMSBackup 0.1.7): the driver followed a stale pointer to the system tables. Upgrade; the backup itself is fine |
 | `[ArpeMSBackup] … data id … outside the dictionaries of column …` (1.5.0) | Fixed in 1.5.1: clustered columnstore segments with a secondary dictionary (large tables, e.g. TPC-H `lineitem`). Upgrade |
 | `backup_mssql` export differs from the live table | The backup is read as its pages are: the log in the backup is not replayed, and differential/log backups are not applied |
@@ -57,7 +67,7 @@
 | `backup_rman` refuses the table | Partitioned / IOT / clustered / object / temporary / external table, or a LOB / `INTERVAL` / `ROWID` / `JSON` / `VECTOR` column (the message names it): export the other columns with `--query "SELECT col1, col2 FROM OWNER.TABLE"` |
 | `backup_rman`: table not found | Give every piece of the backup (`--database "db_*;ctl_*"`, quoted); a table of the root or of another PDB is `CONTAINER.OWNER.TABLE` in `--query` |
 | `backup_rman` export differs from the live table | An online backup is read as its blocks are (redo not applied), and only up to the full or level 0 backup given (level 1 changes are not applied) |
-| A scheduled run on Windows is much slower than in a console (1.5.1 and older) | Windows 11 keeps programs without a window on the efficiency cores. Fixed in 1.5.2 (FastBCP asks for full speed); `FASTBCP_ECOQOS=1` restores the old behaviour |
+| A scheduled run on Windows is much slower than in a console (1.5.1 and older) | Windows 11 keeps programs without a window on the efficiency cores. Fixed in 1.6.0 (FastBCP asks for full speed); `FASTBCP_ECOQOS=1` restores the old behaviour |
 | Dates lost their time part, or gained one, after an upgrade | The default date format changed in 1.1. Set `--dateformat` explicitly |
 
 Parquet type mappings differ between connectors (e.g. `adbc_mssql` vs `mssql`). Check the docs'
@@ -106,7 +116,21 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
 - **1.5.1**: ArpeMSBackup 0.1.7, two `backup_mssql` fixes: backups whose system tables have a stale
   first-page pointer (`catalog page (x:y) not in the backup`), and clustered columnstore tables with
   secondary dictionaries (`data id … outside the dictionaries`). No option or behaviour change.
-- **1.5.2**: `backup_rman` (Oracle RMAN backup sets without restore or Oracle, ArpeOraBackup 0.1.1,
+- **1.6.0**: `backup_rman` (Oracle RMAN backup sets without restore or Oracle, ArpeOraBackup 0.1.0,
   AdbcFileExport 0.5.6): uncompressed and BASIC / LOW / MEDIUM / HIGH compressed, Oracle 19c, 21c, 23ai,
   26ai; `Physical` resolves to `Pages`. On Windows, FastBCP opts out of the efficiency cores at start
-  (`FASTBCP_ECOQOS=1` keeps the Windows policy).
+  (`FASTBCP_ECOQOS=1` keeps the Windows policy). Large striped SQL Server backups ready in seconds.
+- **1.6.1**: `backup_rman` refuses incremental level 1 sets. **1.6.0 read them as full backups, with no error
+  and only the changed rows**: export such tables again from the full or level 0 backup.
+- **1.6.2**: `datetime2(7)` and `datetimeoffset(7)` as microseconds by default, so the whole SQL Server date
+  range is exported (`backup_mssql`, `adbc_mssql`); `backup_mssql` columnstore and accented path fixes.
+- **1.6.3**: `backup_mssql` exports up to 2.8× faster, backups opened again in milliseconds, columnstore fixes.
+- **1.6.4**: `backup_rman` backups opened again in milliseconds; **`LONG` / `LONG RAW` values longer than a block
+  and `TIMESTAMP WITH LOCAL TIME ZONE` values came out wrong from 1.6.0 to 1.6.3**: export them again. Exact
+  unsigned 64-bit integers from HFSQL (OLE DB) and MySQL.
+- **1.6.5**: `backup_mssql` writes the same Parquet as `adbc_mssql` (`geography`, `geometry`, `vector`,
+  `time(7)`, `sql_variant` change: check the pipelines reading them); far less memory on wide clustered
+  columnstore tables; `json` and `vector(n, float16)` refused; `FASTBCP_UID_STRING_CASING` applies.
+- **1.6.6**: `backup_mssql` reads encrypted and TDE backups with the certificate's private key (`--sourceuser`,
+  `--sourcepassword`, ArpeMSBackup 0.1.17); a damaged `.bak` no longer hangs; `FASTBCP_INDEX_DIR` and a warning
+  when the index of a backup cannot be saved (ArpeOraBackup 0.1.3).

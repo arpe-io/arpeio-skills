@@ -7,12 +7,12 @@ existing scripts.
 
 | Long | Short | Value |
 |---|---|---|
-| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `adbc_teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb`, `backup_mssql` (1.5+), `backup_rman` (1.5.2+) |
+| `--connectiontype` | `-C` | `mssql` (default), `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `mysql`, `oraodp`, `adbc_oracle`, `hana`, `teradata`, `adbc_teradata`, `nzsql`, `adbc_netezza`, `clickhouse`, `odbc`, `oledb`, `backup_mssql` (1.5+), `backup_rman` (1.6.0+) |
 | `--server` | `-S` | `host`, `host:port`, `host,port`, `host\instance`, `host:1521/service`, TNS alias. `backup_mssql`: the directory holding the backups. `backup_rman`: the directory of the backup pieces |
 | `--database` | `-I` | database name. `backup_mssql`: the backup file, a pattern (`tpch_*.bak`) or stripes separated by `;`. `backup_rman`: the piece names or patterns, `;` separated (`"full_*;ctl_*"`) |
 | `--trusted` | `-A` | switch: integrated auth |
-| `--user` | `-U` | user name |
-| `--password` | `-X` | password |
+| `--user` (alias `--sourceuser`) | `-U` | user name. With `backup_mssql` (1.6.6+): the file of the certificate's private key of an encrypted backup |
+| `--password` (alias `--sourcepassword`) | `-X` | password. With `backup_mssql` (1.6.6+): the password of that key, if any |
 | `--sourceconnectstring` | `-g` | full connection string (overrides the above) |
 | `--dsn` | `-N` | ODBC DSN |
 | `--provider` | `-P` | OLE DB provider |

@@ -229,7 +229,44 @@ FastBCP 1.3 or older, write those names instead.
 No credentials: `--server` is the backup directory and `--database` the backup file. `Physical`
 resolves to `Pages`.
 
-## Oracle RMAN backup → Parquet, no restore, Physical (Linux, 1.5.2+)
+## Encrypted SQL Server backup → Parquet, no restore (1.6.6+)
+
+`WITH ENCRYPTION`, a TDE database, or both. The key file and its password stand for the user's own.
+
+```powershell
+.\FastBCP.exe `
+  --connectiontype "backup_mssql" `
+  --server "D:\Backups\MSSQL" `
+  --database "sales_encrypted.bak" `
+  --sourceuser "D:\Secure\Keys\MyCert.pvk" `
+  --sourcepassword $env:KEY_PASSWORD `
+  --sourceschema "dbo" `
+  --sourcetable "orders" `
+  --directory "D:\export\orders" `
+  --fileoutput "orders.parquet" `
+  --parallelmethod "Physical" `
+  --paralleldegree 8
+```
+
+```bash
+./FastBCP \
+  --connectiontype "backup_mssql" \
+  --server "/var/opt/mssql/backup" \
+  --database "sales_encrypted.bak" \
+  --sourceuser "/secure/keys/MyCert.pvk" \
+  --sourcepassword "$KEY_PASSWORD" \
+  --sourceschema "dbo" \
+  --sourcetable "orders" \
+  --directory "/export/orders" \
+  --fileoutput "orders.parquet" \
+  --parallelmethod "Physical" \
+  --paralleldegree 8
+```
+
+A key without a password takes no `--sourcepassword`. Two certificates (a backup `WITH ENCRYPTION` of a TDE
+database): `--sourceuser "backup_cert.pvk;tde_cert.pvk"`, with one password for both.
+
+## Oracle RMAN backup → Parquet, no restore, Physical (Linux, 1.6.0+)
 
 ```bash
 ./FastBCP \
