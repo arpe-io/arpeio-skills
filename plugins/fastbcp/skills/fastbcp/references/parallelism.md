@@ -43,7 +43,7 @@ A `--query` can be added to filter rows.
 | `mssql`, `msoledbsql`, `adbc_mssql` | `Physloc` (`%%physloc%%`) |
 | `nzsql`, `nzcopy`, `nzoledb`, `adbc_netezza` | `NZDataSlice` (one chunk per data slice, shared work queue) |
 | `backup_mssql` (1.5+) | `Pages` (contiguous ranges of data pages, or of rowgroups and delta stores for a clustered columnstore table) |
-| `backup_rman` (1.5.2+) | `Pages` (contiguous ranges of the table's blocks) |
+| `backup_rman` (1.6.0+) | `Pages` (contiguous ranges of the table's blocks) |
 
 - Needs `--sourceschema` and `--sourcetable`; a `--query` may add a simple `WHERE` filter.
   `--distributekeycolumn` is not used.

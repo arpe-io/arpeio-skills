@@ -1,6 +1,6 @@
 ---
 name: fastbcp
-description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak) and Oracle RMAN backup sets without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
+description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak, encrypted or TDE ones included) and Oracle RMAN backup sets without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
 ---
 
 # FastBCP
@@ -11,7 +11,7 @@ query) → one output file, or one file per parallel chunk / partition.
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastBCP **1.5**. Detailed references (load only what you need):
+Facts below reflect FastBCP **1.6.6**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -31,9 +31,12 @@ https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one fi
 When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
-- **1.5** → use this skill as is. With `backup_mssql`, recommend **1.5.1**: 1.5.0 fails on some
+- **1.6** → use this skill as is. Encrypted and TDE backups and `FASTBCP_INDEX_DIR` need **1.6.6**; before,
+  such a backup is refused: restore it and use `mssql` / `adbc_mssql`. Before 1.6.5, `backup_mssql` writes
+  some column types differently from `adbc_mssql` (see the version notes in troubleshooting.md).
+- **1.5** → With `backup_mssql`, recommend **1.5.1**: 1.5.0 fails on some
   backups (`catalog page (x:y) not in the backup`) and on some columnstore tables
-  (`data id … outside the dictionaries`). `backup_rman` (Oracle RMAN backups) needs **1.5.2**; before,
+  (`data id … outside the dictionaries`). `backup_rman` (Oracle RMAN backups) needs **1.6.0**; before,
   restore the backup and use `oraodp` / `adbc_oracle`.
 - **1.4** → `backup_mssql` doesn't exist yet (restore the backup and use `mssql` / `adbc_mssql`).
   `FastBCP.lic` is only looked up next to the executable, not in the current directory.
@@ -51,8 +54,10 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 
 1. **Source** – engine → `--connectiontype`; server, database, auth (`--trusted`, `--user`/`--password`,
    or `--sourceconnectstring`). See connections.md. A SQL Server `.bak` file (1.5+): `backup_mssql`,
-   `--server` = backup directory, `--database` = backup file, no credentials. Oracle RMAN backup pieces
-   (1.5.2+): `backup_rman`, `--server` = directory of the pieces, `--database` = their names or patterns
+   `--server` = backup directory, `--database` = backup file, no credentials; for an encrypted or TDE backup
+   (1.6.6+), `--sourceuser` = file of the certificate's private key, `--sourcepassword` = its password, if any.
+   Oracle RMAN backup pieces
+   (1.6.0+): `backup_rman`, `--server` = directory of the pieces, `--database` = their names or patterns
    (`;` separated), no credentials.
 2. **What to export** – `--sourceschema` + `--sourcetable`, or `--query` / `--fileinput`.
    Both can be combined (needed for `{sourceschema}`/`{sourcetable}` tokens or a filtered parallel export).
@@ -84,7 +89,7 @@ Size the table in **cells** (rows × columns, from catalog statistics); count wi
 | Date column, want `year=…/month=…` folders | `Timepartition` | `"(col, year, month)"` |
 | One file per business value, an expression like `YEAR(col)`, or incremental extracts | `DataDriven` (+ optional `--datadrivenquery`) | column or expression |
 | Engine without `Physical` (Teradata, MySQL, HANA, ClickHouse, ODBC/OLE DB) and no good key | `DataDriven` on a business column | column |
-| SQL Server backup file (`backup_mssql`, 1.5+) or Oracle RMAN backup (`backup_rman`, 1.5.2+), any size worth splitting | `Physical` (resolves to `Pages`); only `None` and `Physical` are allowed | – |
+| SQL Server backup file (`backup_mssql`, 1.5+) or Oracle RMAN backup (`backup_rman`, 1.6.0+), any size worth splitting | `Physical` (resolves to `Pages`); only `None` and `Physical` are allowed | – |
 
 Don't recommend `Random` unless asked (kept for compatibility and benchmarks; often the slowest). `Ctid`, `Rowid`,
 `Physloc` and `NZDataSlice` are **deprecated** in 1.4: write `Physical`, which picks the same strategy
@@ -110,9 +115,9 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
   and no key column; a `--query` may only add a simple `WHERE`. It fails on `odbc`, `oledb`, `mysql`,
   `clickhouse`, `hana`, `teradata` and `adbc_teradata`.
 - `adbc_teradata` refuses `--trusted`: use `--user`/`--password` (or a connection string).
-- `backup_mssql`: no credentials; a striped backup needs every stripe (pattern or `;` list);
-  `--query` only as `SELECT * | columns FROM [schema.]table`, no `WHERE`; TDE and encrypted backups
-  are refused.
+- `backup_mssql`: no database credentials; a striped backup needs every stripe (pattern or `;` list);
+  `--query` only as `SELECT * | columns FROM [schema.]table`, no `WHERE`. A TDE or encrypted backup needs
+  the private key of the certificate (1.6.6+): never guess the key file or its password, ask.
 - `backup_rman`: no credentials; give **every piece** of the backup (every set, every piece of a
   multi-piece set) by patterns or a `;` list, quoted; incremental level 1 sets are refused (level 0 is read);
   `--query` only as `SELECT * | columns FROM [[container.]owner.]table`, no `WHERE`; encrypted sets

@@ -21,8 +21,8 @@
 | `clickhouse` | ClickHouse | |
 | `odbc` | Any ODBC source (e.g. DB2) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
 | `oledb` | Any OLE DB source | Windows only. Needs `--provider` (e.g. `MSOLEDBSQL`, `NZOLEDB`, `OraOLEDB.Oracle`) |
-| `backup_mssql` (1.5+) | SQL Server full backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
-| `backup_rman` (1.5.2+) | Oracle RMAN backup sets, read without restoring them and without an Oracle instance (embedded ArpeOraBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
+| `backup_mssql` (1.5+) | SQL Server full backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no database credentials (`--user` / `--password` name the certificate key of an encrypted backup, 1.6.6+). See below |
+| `backup_rman` (1.6.0+) | Oracle RMAN backup sets, read without restoring them and without an Oracle instance (embedded ArpeOraBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
 
 `msoledbsql`, `nzcopy` and `nzoledb` also appear in the docs (e.g. as `Physical` sources) but not in
 this table; use them only if the user asks.
@@ -154,7 +154,8 @@ backups much larger than the RAM work.
 
 - `--server`: the **directory** holding the backups (`D:\Backups\MSSQL`, `/var/opt/mssql/backup`).
 - `--database`: the **backup file** in that directory, or a pattern (`*`, `?`) matching one backup.
-- **No credentials**: `--user`, `--password`, `--trusted` and `--sourceconnectstring` are not used. The
+- **No database credentials**: `--trusted` is not used; `--user` and `--password` only serve for
+  [encrypted backups](#encrypted-backups-166); `--sourceconnectstring` only sets driver options. The
   driver is licensed like the other ADBC FastDrivers (see environment.md, "License").
 - Use **1.5.1+** (ArpeMSBackup 0.1.7): 1.5.0 fails on some backups and columnstore tables (see
   troubleshooting.md).
@@ -170,20 +171,66 @@ backups much larger than the RAM work.
   `varbinary(max)`, `text`, `ntext`, `image`, row-overflow), `xml`, sparse and persisted computed
   columns, and **clustered columnstore** (archive compression and open delta store included).
   `sql_variant` is exported as text.
-- **Refused**: backups of **TDE** databases and **encrypted backups** (`WITH ENCRYPTION`).
+- **Refused**: tables with a `json` or `vector(n, float16)` column (SQL Server 2025, since 1.6.5): list the
+  other columns in `--query`, or use `adbc_mssql`. Before 1.6.6, backups of **TDE** databases and
+  **encrypted backups** (`WITH ENCRYPTION`) too. A damaged or truncated backup stops with an error.
 - Source: `--sourceschema` + `--sourcetable`, or a `--query` limited to
   `SELECT * | col1, col2, … FROM [schema.]table` (no filter).
 - Parallel methods: `None` or `Physical` only (`Physical` resolves to `Pages`, see parallelism.md).
 - Consistency: a backup taken while the database was being written is read as its pages are; the
   transaction log in the backup is not replayed.
-- Parquet types: the `adbc_mssql` mapping, except `time(7)`, `datetime2(7)`, `datetimeoffset(7)` keep
-  100 ns resolution (nanosecond unit, `adbc_mssql` writes microseconds), and `geography` / `geometry`
-  are written as the SQL Server binary serialization (`adbc_mssql` writes WKB + GeoParquet metadata).
+- Parquet types: since 1.6.5, the same Parquet as `adbc_mssql`, values and schema: `time(7)` and, since
+  1.6.2, `datetime2(7)` and `datetimeoffset(7)` as microseconds, `geography` / `geometry` as WKB with
+  GeoParquet metadata, `vector(n)` as a list of floats. To keep the SQL Server serialization of spatial columns:
+  `--sourceconnectstring "adbc.arpemsbackup.path=<dir>;adbc.arpemsbackup.file=<file>;adbc.arpemsbackup.geospatial=varbinary"`
+  (`wkb` writes plain WKB without the metadata). Check a pipeline fed by exports of an older version before
+  upgrading.
 - Speed (docs, degree 8, TPC-H `orders` 15M rows): about 5M rows/s from an uncompressed backup, vs
   3.3M rows/s with `adbc_mssql` and 1.4M rows/s with `mssql` on the live database; 2.1–2.6M rows/s from
   MS_XPRESS / ZSTD backups.
+- Backups opened again (1.6.3+): the first export reads the structure of the backup and keeps it in a small
+  index file, so the next exports open in milliseconds. It is on by default, for `backup_rman` too (1.6.4+).
+  Directory: the local application data of the user, or `FASTBCP_INDEX_DIR` (1.6.6+) for an account without
+  a usable home. A warning says when the index cannot be saved; the export still runs.
 
-## Oracle RMAN backup sets (`backup_rman`, 1.5.2+)
+### Encrypted backups (1.6.6+)
+
+Backups `WITH ENCRYPTION` and backups of **TDE** databases, alone or together, are read with the private
+key of the server certificate, still without SQL Server: AES 128, 192 and 256, Triple DES, compressed or
+not, striped. A backup that is not encrypted ignores both parameters.
+
+- `--user` (alias `--sourceuser`): the file of the private key: `.pvk`, `.pfx` / `.p12`, PEM or DER, or a
+  `.cer` / `.crt` certificate with its private key next to it, under the same name. Several files separated
+  by `;`: a backup `WITH ENCRYPTION` of a TDE database can use two certificates.
+- `--password` (alias `--sourcepassword`): the password of that key, if it has one. Hidden in all logs.
+- `backup_rman` does not use them: encrypted RMAN sets stay refused.
+- Without the right key the export stops, and the message names the certificate by its thumbprint (the one
+  `sys.certificates` shows). A wrong or missing password stops it too.
+
+Export the key on the server that holds the certificate, as a PVK file, or a PFX file on SQL Server 2022+:
+
+```sql
+BACKUP CERTIFICATE MyCert TO FILE = 'C:\keys\MyCert.cer'
+  WITH PRIVATE KEY (FILE = 'C:\keys\MyCert.pvk', ENCRYPTION BY PASSWORD = '<key password>');
+
+BACKUP CERTIFICATE MyCert TO FILE = 'C:\keys\MyCert.pfx'
+  WITH FORMAT = 'PFX', PRIVATE KEY (ENCRYPTION BY PASSWORD = '<key password>', ALGORITHM = 'AES_256');
+```
+
+Limits:
+
+- SQL Server gives the files written by `BACKUP CERTIFICATE` to its service account alone: grant the account
+  running FastBCP read access, or use `CERTPRIVATEKEY` and `CERTENCODED`, which return the same bytes.
+- Keys in an EKM provider (`SERVER ASYMMETRIC KEY`) are not supported.
+- An **uncompressed** backup of a TDE database taken while its key was being changed (`encryption_state` 4)
+  is refused when the export reaches a page under the previous key. Take it again after the change, or
+  `WITH COMPRESSION`, which reads normally.
+- A non-ASCII password of a PVK file depends on the code page of the server: if it is reported as wrong,
+  export the key with an ASCII password.
+- Whoever has the private key can read the backups it opens, with no server involved. The index file holds
+  no key and the key is needed at every export. Pass the password through a shell variable or a secret store.
+
+## Oracle RMAN backup sets (`backup_rman`, 1.6.0+)
 
 Reads a table straight from **RMAN backup sets**, without restoring them and without any Oracle
 instance: on a backup server, from an archive, or for a database that no longer exists.
