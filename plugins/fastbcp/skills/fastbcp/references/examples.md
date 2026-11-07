@@ -266,6 +266,43 @@ resolves to `Pages`.
 A key without a password takes no `--sourcepassword`. Two certificates (a backup `WITH ENCRYPTION` of a TDE
 database): `--sourceuser "backup_cert.pvk;tde_cert.pvk"`, with one password for both.
 
+## Full backup and its differential → Parquet, no restore (1.6.7+)
+
+PowerShell, the two files named:
+
+```powershell
+.\FastBCP.exe `
+  --connectiontype "backup_mssql" `
+  --server "D:\Backups\MSSQL" `
+  --database "sales_full.bak;sales_diff.bak" `
+  --sourceschema "dbo" `
+  --sourcetable "orders" `
+  --directory "D:\export\orders" `
+  --fileoutput "orders.parquet" `
+  --parallelmethod "Physical" `
+  --paralleldegree 8
+```
+
+Linux, a pattern over a directory of backups of one database:
+
+```bash
+./FastBCP \
+  --connectiontype "backup_mssql" \
+  --server "/var/opt/mssql/backup" \
+  --database "sales_*.bak" \
+  --sourceschema "dbo" \
+  --sourcetable "orders" \
+  --directory "/export/orders" \
+  --fileoutput "orders.parquet" \
+  --parallelmethod "Physical" \
+  --paralleldegree 8
+```
+
+The whole table comes out, in its latest version: the newest full backup and the newest differential taken from it, in
+any order and whatever the files are called. Older backups can match the pattern. A file `WITH NOINIT` holding both needs
+only its name. An encrypted differential adds `--sourceuser` and `--sourcepassword`, as above. If a backup that could be
+the newest cannot be used, the export fails and names it (see connections.md).
+
 ## Oracle RMAN backup → Parquet, no restore, Physical (Linux, 1.6.0+)
 
 ```bash

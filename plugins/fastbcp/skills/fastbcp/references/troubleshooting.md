@@ -3,7 +3,7 @@
 ## First steps when a run fails
 
 1. Re-run with `--loglevel Debug` and a recognisable `--runid`.
-2. Check `--version` against the features used. `backup_mssql` needs 1.5; `Physical`, `adbc_teradata`
+2. Check `--version` against the features used. `backup_mssql` needs 1.5, differential backups 1.6.7; `Physical`, `adbc_teradata`
    and `FASTBCP_TTU_PATH` need 1.4; `DBPartition`, `adbc_oracle`, `adbc_netezza`, `FASTBCP_DBPARTITION_TARGET_MODE` and
    `AZURE_STORAGE_SAS_URL` need 1.3.
 3. Test the connection with a tiny query, e.g. `--query "SELECT 1 AS x"` with method `None`.
@@ -47,7 +47,19 @@
 | Exit code 99 after upgrading to 1.5, run worked before | 1.5 has no build-date trial: a license file is required. With `adbc_*` / `backup_mssql`, the file also needs an `ARPE ADBC DRIVER LICENCE` block (or set `ARPEIO_ADBC_LICENCE` / `ARPEIO_ADBC_LICENCE_FILE`) |
 | `FastBCP.lic` found in an unexpected place (1.5+) | The current directory is searched before the executable's directory. Pass `--license` explicitly in scheduled jobs |
 | `<method> method is not available with connection type backup_mssql` | Use `--parallelmethod None` or `Physical` |
-| `backup_mssql` refuses the backup | QAT_DEFLATE compression, a differential/log-only file, or an incomplete stripe set (the message names the missing stripes). Before 1.6.6: a TDE database or `WITH ENCRYPTION` too |
+| `backup_mssql` refuses the backup | QAT_DEFLATE compression, a file with no full backup, or an incomplete stripe set (the message names the missing stripes). Before 1.6.6: a TDE database or `WITH ENCRYPTION` too. Since 1.6.7: see the rows below, and "Upgrading from 1.6.6" in connections.md |
+| An export that worked with 1.6.6 fails on a backup (1.6.7+) | A backup that could be the newest and cannot be used now fails the export. The warning after the error gives the ways out; the table is in connections.md. Fix the files first: `FASTBCP_BACKUP_RESTORE_MODE=best_effort` and `FASTBCP_BACKUP_RESTORE_POINT=full` can read older rows |
+| `… holds no full database backup for set N: this differential (finished …) needs the full backup …, which is not among the files given` (1.6.7+) | Give the full backup too, in `--database`, in the same `--server` directory |
+| `…, set N: incomplete (no end of set): the backup was interrupted or the file truncated` (1.6.7+) | Copy the file again, or wait for it. A full backup alone that only lost its end: `FASTBCP_BACKUP_RESTORE_POINT=full` reads it, `best_effort` cannot as it has no other version. Check the file first |
+| `…, set N: a file, filegroup or partial backup: it does not hold the whole database` (1.6.7+) | Give a full backup. In a `WITH NOINIT` file after a full backup, `FASTBCP_BACKUP_RESTORE_POINT=full` reads as 1.6.6, `best_effort` every table from the full backup, so older rows |
+| `…: not a backup` (1.6.7+) | The pattern matches another file: narrow `--database` |
+| `… is locked by another process: a backup still being written?` (1.6.7+) | Wait for the end of the backup, or leave that file out of `--database` |
+| `… are backups of a database and of a restored copy of it …: name the files of one` (1.6.7+) | Narrow `--database` to the files of one database |
+| `no usable backup in the files given: …` (1.6.7+) | No version can be read, with any setting: give a full backup that can be used |
+| `… is a complete backup on its own, but N files were given: name one backup` (1.6.6 and older, or `FASTBCP_BACKUP_RESTORE_POINT=full`) | One backup only with these. Since 1.6.7, without that variable, several backups are read at their latest version |
+| `FASTBCP_BACKUP_RESTORE_MODE must be one of strict\|best_effort` / `FASTBCP_BACKUP_RESTORE_POINT must be one of latest\|full` (1.6.7+) | Fix the value of the variable: the run stops at startup |
+| An export reads older rows than expected (1.6.7+) | `FASTBCP_BACKUP_RESTORE_MODE=best_effort` skipped a newer backup: see the standard error output, as the FastBCP logs do not list it. Or `FASTBCP_BACKUP_RESTORE_POINT=full` is set, or the differential is not in `--database`. The logs do not name the files read: name exactly the two files to be sure |
+| A `WITH NOINIT` file with differentials gives other rows after upgrading (1.6.7+) | Expected: its newest differential is now read. `FASTBCP_BACKUP_RESTORE_POINT=full` gives the last full backup, as 1.6.6 |
 | `[ArpeMSBackup] …: its data cannot be read without the private key of certificate 0x…` (1.6.6+) | Encrypted or TDE backup: give the key file with `--sourceuser`. The thumbprint is the one `sys.certificates` shows on the server |
 | `[ArpeMSBackup] …: the private key given does not open it: it needs the private key of certificate 0x…` | Not the right certificate. A backup `WITH ENCRYPTION` of a TDE database can need two: separate the files with `;` |
 | `[ArpeMSBackup] …: the private key is protected by a password` | Give it with `--sourcepassword`. If a non-ASCII PVK password is reported as wrong, export the key with an ASCII password |
@@ -61,7 +73,7 @@
 | `backup_mssql` with CSV output, a `WHERE` in `--query`, or credentials | Parquet only; `--query` is limited to `SELECT * \| columns FROM [schema.]table`; no `--trusted`, and `--user` / `--password` are the certificate key of an encrypted backup, not a login |
 | `[ArpeMSBackup] catalog of …: catalog page (x:y) not in the backup` (1.5.0) | Fixed in 1.5.1 (ArpeMSBackup 0.1.7): the driver followed a stale pointer to the system tables. Upgrade; the backup itself is fine |
 | `[ArpeMSBackup] … data id … outside the dictionaries of column …` (1.5.0) | Fixed in 1.5.1: clustered columnstore segments with a secondary dictionary (large tables, e.g. TPC-H `lineitem`). Upgrade |
-| `backup_mssql` export differs from the live table | The backup is read as its pages are: the log in the backup is not replayed, and differential/log backups are not applied |
+| `backup_mssql` export differs from the live table | The backup is read as its pages are: the log in the backup is not replayed, a differential taken during writes included, and log backups are not applied. Before 1.6.7, differentials are not applied either |
 | `<method> method is not available with connection type backup_rman` | Use `--parallelmethod None` or `Physical` |
 | `backup_rman` refuses the backup | Encrypted backup set (`SET ENCRYPTION`), an incremental level 1 set (`is an incremental level 1 backup`: give the full or level 0 pieces only), an incomplete multi-piece set (the message names the missing piece), a non-default block size tablespace, or a big-endian platform's backup |
 | `backup_rman` refuses the table | Partitioned / IOT / clustered / object / temporary / external table, or a LOB / `INTERVAL` / `ROWID` / `JSON` / `VECTOR` column (the message names it): export the other columns with `--query "SELECT col1, col2 FROM OWNER.TABLE"` |
@@ -131,6 +143,12 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
 - **1.6.5**: `backup_mssql` writes the same Parquet as `adbc_mssql` (`geography`, `geometry`, `vector`,
   `time(7)`, `sql_variant` change: check the pipelines reading them); far less memory on wide clustered
   columnstore tables; `json` and `vector(n, float16)` refused; `FASTBCP_UID_STRING_CASING` applies.
+- **1.6.7**: `backup_mssql` reads the latest version from full and differential backups (ArpeMSBackup 0.2.0);
+  `FASTBCP_BACKUP_RESTORE_POINT`, `FASTBCP_BACKUP_RESTORE_MODE`. **A backup that could be the newest and cannot be
+  used now fails the export, and a `WITH NOINIT` file with differentials reads fresher rows**: see "Upgrading from
+  1.6.6" in connections.md. Fixed: the end of some compressed backups was lost without an error, on about 2 % of
+  the backups tried (no page lost on 168 test backups); a file or partial backup taken for a full backup. Each
+  backup reads its structure once more on the first export.
 - **1.6.6**: `backup_mssql` reads encrypted and TDE backups with the certificate's private key (`--sourceuser`,
   `--sourcepassword`, ArpeMSBackup 0.1.17); a damaged `.bak` no longer hangs; `FASTBCP_INDEX_DIR` and a warning
   when the index of a backup cannot be saved (ArpeOraBackup 0.1.3).
