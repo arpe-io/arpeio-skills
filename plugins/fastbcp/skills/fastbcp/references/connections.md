@@ -21,7 +21,7 @@
 | `clickhouse` | ClickHouse | |
 | `odbc` | Any ODBC source (e.g. DB2) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
 | `oledb` | Any OLE DB source | Windows only. Needs `--provider` (e.g. `MSOLEDBSQL`, `NZOLEDB`, `OraOLEDB.Oracle`) |
-| `backup_mssql` (1.5+) | SQL Server full backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no database credentials (`--user` / `--password` name the certificate key of an encrypted backup, 1.6.6+). See below |
+| `backup_mssql` (1.5+) | SQL Server full and, since 1.6.7, differential backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no database credentials (`--user` / `--password` name the certificate key of an encrypted backup, 1.6.6+). See below |
 | `backup_rman` (1.6.0+) | Oracle RMAN backup sets, read without restoring them and without an Oracle instance (embedded ArpeOraBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
 
 `msoledbsql`, `nzcopy` and `nzoledb` also appear in the docs (e.g. as `Physical` sources) but not in
@@ -44,7 +44,7 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 | Long | Short | Notes |
 |---|---|---|
 | `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias. With `backup_mssql`: the directory of the backups; with `backup_rman`: the directory of the backup pieces |
-| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file name; with `backup_rman`: the piece names or patterns, `;` separated |
+| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file names, a pattern or a `;` list; with `backup_rman`: the piece names or patterns, `;` separated |
 | `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it (not with `adbc_teradata`) |
 | `--user` | `-U` | |
 | `--password` | `-X` | Masked in FastBCP logs |
@@ -148,12 +148,13 @@ Per-driver notes:
 
 ## SQL Server backup files (`backup_mssql`, 1.5+)
 
-Reads a table straight from a SQL Server **full backup** (`.bak`), without restoring it and without any
+Reads a table straight from SQL Server **full and differential backups** (`.bak`), without restoring them and without any
 SQL Server instance. The backup is read in place (random access by page), never loaded in memory, so
 backups much larger than the RAM work.
 
 - `--server`: the **directory** holding the backups (`D:\Backups\MSSQL`, `/var/opt/mssql/backup`).
-- `--database`: the **backup file** in that directory, or a pattern (`*`, `?`) matching one backup.
+- `--database`: the **backup files** in that directory: a file name, a pattern (`*`, `?`), or a `;` list, in any
+  order. Before 1.6.7, they had to be one backup.
 - **No database credentials**: `--trusted` is not used; `--user` and `--password` only serve for
   [encrypted backups](#encrypted-backups-166); `--sourceconnectstring` only sets driver options. The
   driver is licensed like the other ADBC FastDrivers (see environment.md, "License").
@@ -165,20 +166,22 @@ backups much larger than the RAM work.
 - **Striped backups** (`BACKUP ... TO DISK = a, DISK = b, …`): name every stripe with a pattern
   (`--database "tpch_*.bak"`) or a `;` list (`"tpch_1.bak;tpch_2.bak;tpch_3.bak"`), in any order. An
   incomplete set, stripes of different backups or a lone stripe are refused, naming the missing stripes.
-- A file holding several backups (`WITH NOINIT`): the **last full backup** is read. Differential and log
-  backups are not applied; a file without a full backup is refused.
+- A file holding several backups (`WITH NOINIT`): the [latest version](#differential-backups-167) it holds is
+  read. Before 1.6.7, its last full backup, differentials ignored. Log backups are never applied.
 - Tables: heaps, clustered indexes, partitions, ROW / PAGE compression, LOBs (`(n)varchar(max)`,
   `varbinary(max)`, `text`, `ntext`, `image`, row-overflow), `xml`, sparse and persisted computed
   columns, and **clustered columnstore** (archive compression and open delta store included).
   `sql_variant` is exported as text.
 - **Refused**: tables with a `json` or `vector(n, float16)` column (SQL Server 2025, since 1.6.5): list the
   other columns in `--query`, or use `adbc_mssql`. Before 1.6.6, backups of **TDE** databases and
-  **encrypted backups** (`WITH ENCRYPTION`) too. A damaged or truncated backup stops with an error.
+  **encrypted backups** (`WITH ENCRYPTION`) too. A damaged or truncated backup stops with an error, and so does
+  any [backup that could be the newest and cannot be used](#backups-that-cannot-be-used).
 - Source: `--sourceschema` + `--sourcetable`, or a `--query` limited to
   `SELECT * | col1, col2, … FROM [schema.]table` (no filter).
 - Parallel methods: `None` or `Physical` only (`Physical` resolves to `Pages`, see parallelism.md).
 - Consistency: a backup taken while the database was being written is read as its pages are; the
-  transaction log in the backup is not replayed.
+  transaction log in the backup is not replayed. A differential too: taken during writes, it can give other
+  rows than a `RESTORE` of the same backups. For an exact image, back up while the table is quiet.
 - Parquet types: since 1.6.5, the same Parquet as `adbc_mssql`, values and schema: `time(7)` and, since
   1.6.2, `datetime2(7)` and `datetimeoffset(7)` as microseconds, `geography` / `geometry` as WKB with
   GeoParquet metadata, `vector(n)` as a list of floats. To keep the SQL Server serialization of spatial columns:
@@ -192,6 +195,66 @@ backups much larger than the RAM work.
   index file, so the next exports open in milliseconds. It is on by default, for `backup_rman` too (1.6.4+).
   Directory: the local application data of the user, or `FASTBCP_INDEX_DIR` (1.6.6+) for an account without
   a usable home. A warning says when the index cannot be saved; the export still runs.
+
+### Differential backups (1.6.7+)
+
+`backup_mssql` reads the **latest version** the files hold: the newest full backup, and the newest differential
+taken from it. Always the **whole table**, not what changed. Nothing to set: give FastBCP the files.
+
+| How the backups are stored | `--database` |
+|---|---|
+| One file each | A `;` list in any order, `"sales_full.bak;sales_diff.bak"`, or a pattern, `"sales_*.bak"` |
+| Several days in one directory | A pattern, `"sales_*.bak"`: older backups can match too, only the latest version is read |
+| One file, `WITH NOINIT` | The file, `"sales.bak"` |
+| Striped | All the stripes of each backup, usually a pattern |
+
+- FastBCP checks that the differential was taken from that full backup: names and order do not matter. A
+  differential holds every change since its full backup, so one is enough.
+- All the files must be in the `--server` directory and be backups of one database: `sales_*.bak`, not `*.bak`.
+- Encrypted differentials work the same way, with the [key of their certificate](#encrypted-backups-166).
+- The FastBCP logs give the settings (`Backup version to read : restore point "latest", restore mode "strict"`),
+  **not the files read**. To be sure of what is read, name exactly the two files.
+
+#### Backups that cannot be used
+
+A backup that could be the newest and cannot be used **fails the export, naming it**, rather than reading older
+data without saying so: a differential whose full backup is not among the files, a missing stripe, a backup
+truncated, interrupted or still being written, a file matching the pattern that is not a backup, an encrypted
+backup without its key, a file, filegroup or partial backup, backups of a database and of a restored copy of it.
+A warning in the logs says what can be done. To change this without touching the command:
+
+| Variable | Effect |
+|---|---|
+| `FASTBCP_BACKUP_RESTORE_MODE=best_effort` | The backup is skipped, and the newest usable version is read, **however old**. A warning at each export; the backups skipped go to the standard error output only, not to the FastBCP logs |
+| `FASTBCP_BACKUP_RESTORE_POINT=full` | The last full backup of one backup, differentials ignored and several backups refused, as up to 1.6.6 |
+
+The options `adbc.arpemsbackup.restore_mode` and `adbc.arpemsbackup.restore_point` in `--sourceconnectstring` do the
+same, and win over the variables. Prefer fixing the files: both variables can read older rows.
+
+#### Upgrading from 1.6.6
+
+Measured on both versions. These **worked and now fail**, naming the backup:
+
+| With these files | 1.6.6 | To read anyway |
+|---|---|---|
+| `WITH NOINIT` file whose newest differential has its full backup in another file | The older full backup of the file | Give both files, for the newest rows. `POINT=full` or `MODE=best_effort`, for the rows of 1.6.6 |
+| `WITH NOINIT` file with a file, filegroup or partial backup after the full backup | The tables of that backup, from it; the other tables failed | `POINT=full`, as 1.6.6. `MODE=best_effort`, every table from the full backup, so older rows |
+| `WITH NOINIT` file whose last differential lost the end of the file, after its data | The older full backup of the file | `POINT=full` or `MODE=best_effort`, for the rows of 1.6.6 |
+| Full backup alone that lost the end of the file, after its data | Read | `POINT=full` only: `best_effort` has no other version to read and fails too. Check the file first: it was cut, or is still being copied |
+
+These **read other rows**, or read what used to fail:
+
+| With these files | 1.6.6 | 1.6.7 | To keep 1.6.6 |
+|---|---|---|---|
+| `WITH NOINIT` file with a full backup and differentials | The last full backup | Its newest differential: fresher rows | `POINT=full` |
+| Pattern or list matching several complete backups of a database | Failed | The latest version among them | A narrower `--database` |
+
+These **failed and still fail**, and `MODE=best_effort` now reads them: a file cut in the data of a backup with an
+older complete full backup (the older version), several backups with the newest truncated or still being written (the
+older version), a pattern also matching a file that is not a backup (without that file), backups of a database and of
+a restored copy (the newest of the two, whichever database it is: prefer a narrower `--database`).
+
+The first export from each backup reads its structure once more, as the format of the index changed.
 
 ### Encrypted backups (1.6.6+)
 

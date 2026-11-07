@@ -1,6 +1,6 @@
 ---
 name: fastbcp
-description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak, encrypted or TDE ones included) and Oracle RMAN backup sets without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
+description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak, full and differential, encrypted or TDE ones included) and Oracle RMAN backup sets without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
 ---
 
 # FastBCP
@@ -11,7 +11,7 @@ query) → one output file, or one file per parallel chunk / partition.
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastBCP **1.6.6**. Detailed references (load only what you need):
+Facts below reflect FastBCP **1.6.7**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -31,7 +31,9 @@ https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one fi
 When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
-- **1.6** → use this skill as is. Encrypted and TDE backups and `FASTBCP_INDEX_DIR` need **1.6.6**; before,
+- **1.6** → use this skill as is. Differential backups and `FASTBCP_BACKUP_RESTORE_*` need **1.6.7**; before,
+  a file is read at its last full backup and differentials are ignored, without an error: restore them and use
+  `mssql` / `adbc_mssql`. Encrypted and TDE backups and `FASTBCP_INDEX_DIR` need **1.6.6**; before,
   such a backup is refused: restore it and use `mssql` / `adbc_mssql`. Before 1.6.5, `backup_mssql` writes
   some column types differently from `adbc_mssql` (see the version notes in troubleshooting.md).
 - **1.5** → With `backup_mssql`, recommend **1.5.1**: 1.5.0 fails on some
@@ -54,7 +56,8 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 
 1. **Source** – engine → `--connectiontype`; server, database, auth (`--trusted`, `--user`/`--password`,
    or `--sourceconnectstring`). See connections.md. A SQL Server `.bak` file (1.5+): `backup_mssql`,
-   `--server` = backup directory, `--database` = backup file, no credentials; for an encrypted or TDE backup
+   `--server` = backup directory, `--database` = backup file, pattern or `;` list, no credentials; a full backup
+   and its differential (1.6.7+): name both, or a pattern matching them; for an encrypted or TDE backup
    (1.6.6+), `--sourceuser` = file of the certificate's private key, `--sourcepassword` = its password, if any.
    Oracle RMAN backup pieces
    (1.6.0+): `backup_rman`, `--server` = directory of the pieces, `--database` = their names or patterns
@@ -118,6 +121,10 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
 - `backup_mssql`: no database credentials; a striped backup needs every stripe (pattern or `;` list);
   `--query` only as `SELECT * | columns FROM [schema.]table`, no `WHERE`. A TDE or encrypted backup needs
   the private key of the certificate (1.6.6+): never guess the key file or its password, ask.
+- `backup_mssql` (1.6.7+) reads the **latest version** the files hold, the whole table, never only what changed.
+  A backup that could be the newest and cannot be used fails the export, naming it. Before proposing
+  `FASTBCP_BACKUP_RESTORE_MODE=best_effort` or `FASTBCP_BACKUP_RESTORE_POINT=full`, say that they can read
+  **older rows**: first fix the files named in the error. Details and the upgrade table: connections.md.
 - `backup_rman`: no credentials; give **every piece** of the backup (every set, every piece of a
   multi-piece set) by patterns or a `;` list, quoted; incremental level 1 sets are refused (level 0 is read);
   `--query` only as `SELECT * | columns FROM [[container.]owner.]table`, no `WHERE`; encrypted sets
