@@ -322,6 +322,27 @@ No credentials: `--server` is the directory of the backup pieces and `--database
 Several patterns: `--database "db_*;ctl_*"` (quoted). A table of another PDB, a column subset (a LOB column
 left out): `--query "SELECT EMPLOYEE_ID, LAST_NAME FROM HRPDB.HR.EMPLOYEES"`. `Physical` resolves to `Pages`.
 
+## Oracle RMAN level 0 + incremental backups → Parquet (Windows, 1.6.8+)
+
+```powershell
+.\FastBCP.exe `
+  --connectiontype "backup_rman" `
+  --server "D:\Backups\RMAN\ORCL" `
+  --database "l0\*;l1\**" `
+  --sourceschema "SALES" `
+  --sourcetable "ORDERS" `
+  --directory "D:\export\{sourcetable}" `
+  --fileoutput "{sourcetable}.parquet" `
+  --parallelmethod "Physical" `
+  --paralleldegree 8
+```
+
+The whole table comes out, in its latest version: the level 0 in `l0`, the level 1 to 4 backups in a directory per
+day below `l1` (`**`: any number of subdirectories). Names and order do not matter, older backups can match. All in
+one directory: `--database "ORCL_*"`; everything below `--server`: `--database "**"`. Each entry must match a file.
+An incremental backup without its level 0, or a chain with a hole, fails the export and names the backup needed
+(see connections.md). The level 0 only: `$env:FASTBCP_BACKUP_RESTORE_POINT = "full"` (older rows).
+
 ## Striped SQL Server backup → Parquet (Linux, 1.5+)
 
 ```bash

@@ -75,10 +75,16 @@
 | `[ArpeMSBackup] … data id … outside the dictionaries of column …` (1.5.0) | Fixed in 1.5.1: clustered columnstore segments with a secondary dictionary (large tables, e.g. TPC-H `lineitem`). Upgrade |
 | `backup_mssql` export differs from the live table | The backup is read as its pages are: the log in the backup is not replayed, a differential taken during writes included, and log backups are not applied. Before 1.6.7, differentials are not applied either |
 | `<method> method is not available with connection type backup_rman` | Use `--parallelmethod None` or `Physical` |
-| `backup_rman` refuses the backup | Encrypted backup set (`SET ENCRYPTION`), an incremental level 1 set (`is an incremental level 1 backup`: give the full or level 0 pieces only), an incomplete multi-piece set (the message names the missing piece), a non-default block size tablespace, or a big-endian platform's backup |
+| `backup_rman` refuses the backup | Encrypted backup set (`SET ENCRYPTION`), an incomplete multi-piece set (the message names the missing piece), a non-default block size tablespace, or a big-endian platform's backup. Up to 1.6.7, an incremental level 1 set too (`is an incremental level 1 backup`): upgrade to 1.6.8 and give the whole chain, or give the full or level 0 pieces only |
+| `… its parent is not among the files given: a backup of this file with … is needed` (`backup_rman`, 1.6.8+) | An incremental backup without its level 0, or without a level in between: add the missing backups to `--database` (`"l0/*;l1/**"`, or `"**"` for every subdirectory of `--server`). `FASTBCP_BACKUP_RESTORE_MODE=best_effort` reads the version before the hole, `FASTBCP_BACKUP_RESTORE_POINT=full` the level 0 only: both give older rows |
+| `Backup files: no file matches '…' in …` / `'…' is not a file or a directory in …` (`backup_rman`, 1.6.8+) | An entry of `--database` matches nothing: check its spelling and the directory. Every entry must match at least one file. Up to 1.6.7, any entry with a `/` gave `no file matches`: upgrade, or name the pieces in `--server` only |
+| `Backup files: … has a ';' in its path` (`backup_rman`, 1.6.8+) | `;` separates the entries: rename the file or directory |
+| `Backup files : cannot list …: the backups below it, if any, are not read` (warning, 1.6.8+) | A subdirectory reached by `**` cannot be read by the account running FastBCP: grant it read access, or leave it out |
+| An export that worked with 1.6.7 fails on an RMAN backup (1.6.8+) | A backup set without its last piece, or a table truncated then its tablespace backed up alone, is now refused instead of read wrong. Give the whole set; see "Upgrading from 1.6.7" in connections.md |
+| `backup_rman`: a level 1 fails a table, naming a block that is not in the backup (1.6.8+) | The level 1 was taken under heavy writes: the next level 1, taken at a quieter time, reads it |
 | `backup_rman` refuses the table | Partitioned / IOT / clustered / object / temporary / external table, or a LOB / `INTERVAL` / `ROWID` / `JSON` / `VECTOR` column (the message names it): export the other columns with `--query "SELECT col1, col2 FROM OWNER.TABLE"` |
 | `backup_rman`: table not found | Give every piece of the backup (`--database "db_*;ctl_*"`, quoted); a table of the root or of another PDB is `CONTAINER.OWNER.TABLE` in `--query` |
-| `backup_rman` export differs from the live table | An online backup is read as its blocks are (redo not applied), and only up to the full or level 0 backup given (level 1 changes are not applied) |
+| `backup_rman` export differs from the live table | An online backup is read as its blocks are (redo not applied). Since 1.6.8, the latest version the files give is read: check that the newest incremental backups are in `--database`, and that `FASTBCP_BACKUP_RESTORE_POINT=full` or `best_effort` is not set (what `best_effort` skipped goes to the standard error output). Up to 1.6.7, only the full or level 0 backup is read |
 | A scheduled run on Windows is much slower than in a console (1.5.1 and older) | Windows 11 keeps programs without a window on the efficiency cores. Fixed in 1.6.0 (FastBCP asks for full speed); `FASTBCP_ECOQOS=1` restores the old behaviour |
 | Dates lost their time part, or gained one, after an upgrade | The default date format changed in 1.1. Set `--dateformat` explicitly |
 
@@ -143,6 +149,13 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
 - **1.6.5**: `backup_mssql` writes the same Parquet as `adbc_mssql` (`geography`, `geometry`, `vector`,
   `time(7)`, `sql_variant` change: check the pipelines reading them); far less memory on wide clustered
   columnstore tables; `json` and `vector(n, float16)` refused; `FASTBCP_UID_STRING_CASING` applies.
+- **1.6.8**: `backup_rman` reads incremental backups, levels 0 to 4, differential and cumulative: the latest version
+  of each datafile from a level 0 and the incremental backups on it (ArpeOraBackup 0.3.1). `--database` takes paths,
+  relative to `--server` or absolute, and `**` for any number of subdirectories; each entry must match a file.
+  `FASTBCP_BACKUP_RESTORE_POINT` / `FASTBCP_BACKUP_RESTORE_MODE` apply to `backup_rman`. **A level 0 and its
+  incremental backups now read fresher rows, and a set without its last piece, read short before, now fails**: see
+  "Upgrading from 1.6.7" in connections.md. Also fixed: a column added with a `DEFAULT` read `NULL` on older rows;
+  archived log pieces in the directory, more than 64 pieces and `COPIES 2` are read.
 - **1.6.7**: `backup_mssql` reads the latest version from full and differential backups (ArpeMSBackup 0.2.0);
   `FASTBCP_BACKUP_RESTORE_POINT`, `FASTBCP_BACKUP_RESTORE_MODE`. **A backup that could be the newest and cannot be
   used now fails the export, and a `WITH NOINIT` file with differentials reads fresher rows**: see "Upgrading from
