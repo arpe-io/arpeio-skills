@@ -1,6 +1,6 @@
 ---
 name: fastbcp
-description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak, full and differential, encrypted or TDE ones included) and Oracle RMAN backup sets without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
+description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak, full and differential, encrypted or TDE ones included) and Oracle RMAN backup sets (full and incremental) without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
 ---
 
 # FastBCP
@@ -11,7 +11,7 @@ query) → one output file, or one file per parallel chunk / partition.
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastBCP **1.6.7**. Detailed references (load only what you need):
+Facts below reflect FastBCP **1.6.8**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -31,7 +31,10 @@ https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one fi
 When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
-- **1.6** → use this skill as is. Differential backups and `FASTBCP_BACKUP_RESTORE_*` need **1.6.7**; before,
+- **1.6** → use this skill as is. RMAN incremental backups (level 1 to 4), paths and `**` in the `backup_rman`
+  `--database`, and `FASTBCP_BACKUP_RESTORE_*` with `backup_rman` need **1.6.8**; before, a level 1 is refused and
+  only the full or level 0 backup can be read, from the `--server` directory only. Differential backups and
+  `FASTBCP_BACKUP_RESTORE_*` with `backup_mssql` need **1.6.7**; before,
   a file is read at its last full backup and differentials are ignored, without an error: restore them and use
   `mssql` / `adbc_mssql`. Encrypted and TDE backups and `FASTBCP_INDEX_DIR` need **1.6.6**; before,
   such a backup is refused: restore it and use `mssql` / `adbc_mssql`. Before 1.6.5, `backup_mssql` writes
@@ -61,7 +64,8 @@ building a command; otherwise ask for the version when it matters (a rejected fl
    (1.6.6+), `--sourceuser` = file of the certificate's private key, `--sourcepassword` = its password, if any.
    Oracle RMAN backup pieces
    (1.6.0+): `backup_rman`, `--server` = directory of the pieces, `--database` = their names or patterns
-   (`;` separated), no credentials.
+   (`;` separated), no credentials; a level 0 and its incremental backups (1.6.8+): name the whole chain, with
+   paths and `**` for subdirectories (`"l0/*;l1/**"`, Windows `"l0\*;l1\**"`, or `"**"`).
 2. **What to export** – `--sourceschema` + `--sourcetable`, or `--query` / `--fileinput`.
    Both can be combined (needed for `{sourceschema}`/`{sourcetable}` tokens or a filtered parallel export).
 3. **Target** – `--directory` (local path, UNC, or cloud URI) + `--fileoutput`.
@@ -126,7 +130,10 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
   `FASTBCP_BACKUP_RESTORE_MODE=best_effort` or `FASTBCP_BACKUP_RESTORE_POINT=full`, say that they can read
   **older rows**: first fix the files named in the error. Details and the upgrade table: connections.md.
 - `backup_rman`: no credentials; give **every piece** of the backup (every set, every piece of a
-  multi-piece set) by patterns or a `;` list, quoted; incremental level 1 sets are refused (level 0 is read);
+  multi-piece set) by patterns or a `;` list, quoted. Since 1.6.8, incremental backups are read with their
+  level 0, at the **latest version**, the whole table: give the whole chain; a missing level fails the export,
+  naming the backup needed. The same rule as `backup_mssql` applies before proposing `FASTBCP_BACKUP_RESTORE_*`
+  (older rows). Up to 1.6.7, level 1 sets are refused (level 0 is read);
   `--query` only as `SELECT * | columns FROM [[container.]owner.]table`, no `WHERE`; encrypted sets
   are refused.
 - Methods `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition` require `--distributekeycolumn`.

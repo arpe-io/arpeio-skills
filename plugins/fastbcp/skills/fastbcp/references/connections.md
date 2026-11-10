@@ -22,7 +22,7 @@
 | `odbc` | Any ODBC source (e.g. DB2) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
 | `oledb` | Any OLE DB source | Windows only. Needs `--provider` (e.g. `MSOLEDBSQL`, `NZOLEDB`, `OraOLEDB.Oracle`) |
 | `backup_mssql` (1.5+) | SQL Server full and, since 1.6.7, differential backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no database credentials (`--user` / `--password` name the certificate key of an encrypted backup, 1.6.6+). See below |
-| `backup_rman` (1.6.0+) | Oracle RMAN backup sets, read without restoring them and without an Oracle instance (embedded ArpeOraBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
+| `backup_rman` (1.6.0+) | Oracle RMAN backup sets, full and, since 1.6.8, incremental, read without restoring them and without an Oracle instance (embedded ArpeOraBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
 
 `msoledbsql`, `nzcopy` and `nzoledb` also appear in the docs (e.g. as `Physical` sources) but not in
 this table; use them only if the user asks.
@@ -44,7 +44,7 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 | Long | Short | Notes |
 |---|---|---|
 | `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias. With `backup_mssql`: the directory of the backups; with `backup_rman`: the directory of the backup pieces |
-| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file names, a pattern or a `;` list; with `backup_rman`: the piece names or patterns, `;` separated |
+| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file names, a pattern or a `;` list; with `backup_rman`: the piece names, paths or patterns, `;` separated, `**` for subdirectories (1.6.8+) |
 | `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it (not with `adbc_teradata`) |
 | `--user` | `-U` | |
 | `--password` | `-X` | Masked in FastBCP logs |
@@ -299,20 +299,26 @@ Reads a table straight from **RMAN backup sets**, without restoring them and wit
 instance: on a backup server, from an archive, or for a database that no longer exists.
 
 - `--server`: the **directory** holding the backup pieces (`/backup/rman/orcl`, `D:\Backups\RMAN`).
-- `--database`: the **piece names or patterns** (`*`, `?`) in that directory, several separated by `;`,
-  quoted: `--database "full_*"`, `--database "db_*;ctl_*"`. Give every piece of the backup (the pieces of
-  a multi-piece set, the sets of several channels or of `FILESPERSET`), in any order. An incomplete set
-  is refused, naming the missing piece. With several backups of the same files, the most recent copy
-  of each datafile is read.
-- **No credentials**: `--user`, `--password`, `--trusted` and `--sourceconnectstring` are not used. The
-  driver is licensed like the other ADBC FastDrivers (see environment.md, "License").
+- `--database`: the **pieces**, by names, paths or patterns, several separated by `;`, quoted, in any order:
+  `--database "full_*"`, `--database "db_*;ctl_*"`, `--database "l0/*;l1/**"`. Give every piece of the backup
+  (the pieces of a multi-piece set, the sets of several channels or of `FILESPERSET`) and, with incremental
+  backups, the whole chain. With several backups of the same files, the latest version of each datafile is read.
+  See "Naming the pieces" below.
+- **No credentials**: `--user`, `--password` and `--trusted` are not used; `--sourceconnectstring` only sets
+  driver options (restore point and mode, 1.6.8+). The driver is licensed like the other ADBC FastDrivers
+  (see environment.md, "License").
 - Backups read: full backup sets (database, tablespaces, datafiles, PDBs), uncompressed or
   `AS COMPRESSED BACKUPSET` with **BASIC**, **LOW**, **MEDIUM** or **HIGH**; Oracle **19c, 21c, 23ai,
-  26ai** on Linux x86-64; CDB (root and PDBs) and non-CDB; bigfile and smallfile tablespaces.
-- Incremental backups: a **level 0** backup is read like a full one; **level 1** sets (differential or
-  cumulative, the changed blocks only) are refused, naming the set: give the full or level 0 pieces.
+  26ai** on Linux x86-64; CDB (root and PDBs) and non-CDB; bigfile and smallfile tablespaces. `SECTION SIZE`
+  and `COPIES 2` (1.6.8+). Archived log, control file and SPFILE pieces among the files are ignored (1.6.8+;
+  before, archived log pieces made the open fail).
+- Incremental backups (1.6.8+): levels 0 to 4, differential and cumulative, read with their level 0: the
+  latest version, the whole table. See "Incremental backups" below. Up to 1.6.7: level 0 read like a full
+  backup, level 1 refused (`is an incremental level 1 backup`).
+- Image copies (`BACKUP AS COPY`, `RECOVER COPY` strategies) are not read.
 - Tables: heap tables (chained and migrated rows, more than 255 columns, empty tables).
-- **Refused**, with a message: encrypted backup sets (`SET ENCRYPTION`); incremental level 1 sets; partitioned, index-organized,
+- **Refused**, with a message: encrypted backup sets (`SET ENCRYPTION`); a backup that could be the newest and
+  cannot be used (1.6.8+, below); partitioned, index-organized,
   clustered, object, nested, temporary and external tables; tablespaces with a non-default block size;
   backups of big-endian platforms. LOB, `INTERVAL`, `ROWID` / `UROWID`, `JSON`, `VECTOR`, `XMLTYPE` and
   object columns: the table is refused, but its other columns can be exported by listing them in `--query`.
@@ -340,3 +346,96 @@ instance: on a backup server, from an archive, or for a database that no longer 
     --parallelmethod Physical \
     --paralleldegree 8
   ```
+
+### Naming the pieces (1.6.8+)
+
+`--database` is a `;` list of entries, each relative to `--server` or absolute:
+
+| Linux | Windows | Matches |
+|---|---|---|
+| `full_*`, `ORCL_??_*` | same | `*` and `?` within a name, in the `--server` directory |
+| `l0/*` | `l0\*` | The files of the subdirectory `l0` |
+| `l1/**` | `l1\**` | The files of `l1` and of all its subdirectories |
+| `**` | `**` | Every file below `--server` |
+| `**/ORCL_*` | `**\ORCL_*` | The files named `ORCL_*` in `--server` or any subdirectory |
+| `l0` | `l0` | A directory named last stands for its files |
+| `/backup/l0/*;/backup/l1/2026-11-*/*` | `D:\Backups\l0\*;D:\Backups\l1\2026-11-*\*` | Absolute paths, patterns included |
+
+- Path separator: `/` on Linux (a `\` there is not a separator); on Windows `\` or `/`, both work. Write the
+  command with the separator of the user's OS.
+- Each entry must match at least one file, or the export fails: `no file matches 'l2/**'`. Check the
+  spelling and the directory; a dropped entry is not silently ignored.
+- A name starting with `.` is matched only by a pattern starting with `.`. `**` does not go down into a
+  directory link it finds; a link named in the entry, or `--server` itself, is followed.
+- The log gives the count: `Backup files : 42 file(s) matching 'l0/*;l1/**' in /backup/rman/orcl`.
+- `**` and subdirectories are for `backup_rman` only: `backup_mssql` reads the `--server` directory only.
+- Up to 1.6.7, an entry with a path separator failed (`no file matches`): names or patterns in `--server` only.
+
+### Incremental backups (1.6.8+)
+
+Give the level 0 and the incremental backups taken on it, or the whole directory: each datafile is read at its
+**latest version**. Always the **whole table**, never only the changed rows. Nothing to set.
+
+| How the backups are stored | `--database` |
+|---|---|
+| All in one directory | A pattern, `"ORCL_*"`, or `"*"`: older backups can match too, only the latest version is read |
+| A directory per level | `"l0/*;l1/*"` (Windows: `"l0\*;l1\*"`) |
+| A directory per day below each level | `"l0/*;l1/**"` (Windows: `"l0\*;l1\**"`) |
+| Anywhere below `--server` | `"**"` |
+
+- FastBCP checks that each incremental backup belongs to the chain: names and order do not matter, and a newer
+  full or level 0 among the files starts a new chain. After a restore and `OPEN RESETLOGS`, the abandoned
+  branch is not read.
+- Redo is not applied: an incremental backup taken with the database open is read as its blocks are.
+- A level 1 taken under heavy writes can fail a table, naming the block it lacks: the next level 1, taken at a
+  quieter time, reads it.
+- Reading through a chain costs little more than the level 0 alone (docs, 20M rows, 8 threads: 0.27 s → 0.34 s
+  for a level 0 + 6 level 1, uncompressed); with BASIC compression a long chain costs more (5.2 s → 8.0 s with
+  3 level 1). A cumulative backup or a new level 0 keeps it short.
+- After a new incremental backup, only the new backup is opened in full: the level 0 already opened stays fast.
+
+```bash
+./FastBCP \
+  --connectiontype backup_rman \
+  --server "/backup/rman/orcl" \
+  --database "l0/*;l1/**" \
+  --sourceschema "SALES" \
+  --sourcetable "ORDERS" \
+  --directory "/export/orders" \
+  --fileoutput "orders.parquet" \
+  --parallelmethod Physical \
+  --paralleldegree 8
+```
+
+#### RMAN backups that cannot be used
+
+A backup that could be the newest and cannot be used **fails the export, naming it**, rather than reading older
+data without saying so: an incremental backup whose level 0 or a level in between is not among the files (the
+message names the backup needed: `its parent is not among the files given`), a set without one of its pieces or
+still being written, an encrypted set. The tables of the other datafiles are read. A warning in the logs says what
+can be done. The same variables as for `backup_mssql`:
+
+| Variable | Effect with `backup_rman` |
+|---|---|
+| `FASTBCP_BACKUP_RESTORE_MODE=best_effort` | The backup is skipped, and the newest usable version is read, **however old**. The backups skipped go to the standard error output only |
+| `FASTBCP_BACKUP_RESTORE_POINT=full` | The most recent full or level 0 backup of each datafile, the incremental backups ignored |
+
+The options `adbc.arpeorabackup.restore_mode` and `adbc.arpeorabackup.restore_point` in `--sourceconnectstring`
+do the same, and win over the variables. Prefer fixing the files: both variables can read older rows.
+
+#### Upgrading from 1.6.7
+
+Measured on both versions, Oracle 23ai:
+
+| With these files | 1.6.7 | 1.6.8 | To keep 1.6.7 |
+|---|---|---|---|
+| One full or level 0 backup | Read | Same | — |
+| A level 0 and incremental backups on it | Failed: `is an incremental level 1 backup` | The latest version: fresher rows | `POINT=full`: the level 0 |
+| Incremental backups without their level 0 | Failed | Fails, naming the backup needed | — |
+| A chain with a hole (a level missing, a newer one given) | Failed | Fails, naming the backup and what it needs | `MODE=best_effort`: the version before the hole |
+| `--database` with a subdirectory (`l0/*`) | Failed: `no file matches` | Read | — |
+
+Also on full backups: a set **without its last piece**, read short with no error up to 1.6.7, now fails, naming
+it (`best_effort`: the version before it); a table truncated, then its tablespace backed up alone, read empty, is
+now refused; a column added with a `DEFAULT` read `NULL` on the older rows, now its default; more than 64 pieces
+and `COPIES 2` are read instead of refused; the tables of a dropped PDB are no longer listed.
