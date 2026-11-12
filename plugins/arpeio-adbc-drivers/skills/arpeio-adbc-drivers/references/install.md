@@ -18,7 +18,7 @@ curl -fsSL https://raw.githubusercontent.com/arpe-io/adbc-drivers/main/install.s
   arpemssql -License C:\path\to\your.lic
 ```
 
-Load names: `arpemssql`, `arpepgsql`, `arpeoracle`, `arpenz` (Netezza), `arpeteradata`. macOS is refused
+Load names: `arpemssql`, `arpepgsql`, `arpeoracle`, `arpenz` (Netezza), `arpeteradata`, `arpedb2`. macOS is refused
 (`macOS is not supported yet`).
 
 | `install.sh` | `install.ps1` | Meaning |
