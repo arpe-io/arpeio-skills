@@ -55,14 +55,13 @@ sh install.sh arpeoracle --offline --dir ./bundle --license /path/to/your.lic
 | Manifest `<driver>.toml` | `${XDG_CONFIG_HOME:-~/.config}/adbc/drivers` | `/etc/adbc/drivers` | `%LOCALAPPDATA%\ADBC\Drivers` | `%ProgramData%\arpeio-adbc\adbc\drivers` (added to the machine `ADBC_DRIVER_PATH`) |
 
 - Releases: https://github.com/arpe-io/adbc-drivers/releases, tag `<driver>-v<X.Y.Z>`
-  (e.g. `arpeoracle-v0.4.2`, `arpeteradata-v0.3.5`), assets `lib<driver>_adbc_driver-linux-x64.so` /
+  (e.g. `arpeoracle-v0.4.5`, `arpeteradata-v0.3.6`), assets `lib<driver>_adbc_driver-linux-x64.so` /
   `<driver>_adbc_driver-win-x64.dll` + `SHA256SUMS`.
 - Client can't find the driver: point `ADBC_DRIVER_PATH` at the manifest directory, or load the library
   by full path (`driver="/path/libarpepgsql_adbc_driver-linux-x64.so"`).
 - Installed version: ADBC `GetInfo` (driver version).
 - Windows: the DLLs are self-contained (OpenSSL and the MSVC runtime inside); the host process must be
   64-bit. Linux: glibc ≥ 2.28 (RHEL/Rocky/Alma 8+, Debian 10+, Ubuntu 20.04+; not RHEL 7).
-- NuGet packages exist for .NET (e.g. `ArpePGSQL.AdbcDriver`).
 
 ## Licence
 
