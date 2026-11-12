@@ -1,4 +1,4 @@
-# ArpeTeradata – Teradata ADBC driver (0.3.5)
+# ArpeTeradata – Teradata ADBC driver (0.3.6)
 
 Load name `arpeteradata`. Native Teradata parcel protocol (no ODBC, no `teradatasql`): over TLS
 (WebSocket on the gateway's HTTPS port) with the driver's own logon, or on the legacy DBS port after a
@@ -13,8 +13,7 @@ logon through **your installed TTU CLIv2**, then the driver runs its own protoco
 | Teradata 16.20.53.30+ with a gateway certificate | Needed for the TLS logon; older: legacy port only. Not yet validated |
 | Teradata cloud (VantageCloud) | Checked on the free trial (`<name>-<id>.env.trial.teradata.com`, 20.00); VantageCloud itself listed as not yet validated |
 
-- Clients: Linux x64 (glibc 2.28+), Windows x64 (self-contained DLL), NuGet `ArpeTeradata.AdbcDriver`
-  (native only). No macOS, no Linux arm64. OpenSSL linked in; no Teradata file shipped.
+- Clients: Linux x64 (glibc 2.28+), Windows x64 (self-contained DLL). No macOS, no Linux arm64. OpenSSL linked in; no Teradata file shipped.
 - TTU (CLIv2 **17.10+** and TeraGSS; 20.00 tested) is needed **only** for the legacy port.
 - The logon runs at connect (`dbapi.connect()`): host, TLS, TTU and credential errors come from it.
 - Session: charset `UTF8`, `DECIMAL` up to 38 digits, time zone forced to **UTC**. Not supported: LDAP
@@ -82,7 +81,8 @@ Data Source=td.example.com;Database=SALES;User ID=alice;Password='<pw>';sslmode=
   → `NOT_FOUND`). No catalog level.
 - Statement options: `adbc.arpeteradata.batch_size` (wins over the database value), the
   `adbc.ingest.*` keys, `adbc.arpeteradata.ingest.varchar_length`.
-- Env: `ARPETERADATA_TTU_PATH`, `ARPETERADATA_GSSAPI_LIBRARY`, `ARPETERADATA_NO_TLS_WARNING=1`.
+- Env: `ARPETERADATA_TTU_PATH`, `ARPETERADATA_GSSAPI_LIBRARY`, `ARPETERADATA_NO_TLS_WARNING=1`,
+  `ARPEIO_ADBC_LOG_TLS=1`.
 
 Transactions: Teradata mode uses `BT` / `ET` / `ABORT`; a failed request rolls back the whole open
 transaction (autocommit stays off). ANSI mode uses `COMMIT` / `ROLLBACK` (with autocommit on the
@@ -126,6 +126,10 @@ transaction. Closing rolls back work that may have written. Cancel works on Linu
   `/etc/ssl/certs/ca-certificates.crt`, `/etc/ssl/ca-bundle.pem`, `/etc/ssl/cert.pem`);
   `SSL_CERT_FILE` / `SSL_CERT_DIR` replace that search. **Windows reads the ROOT certificate store.**
   An internal CA goes in `sslca`.
+- Read back what was negotiated (0.3.6+): connection options `adbc.arpeteradata.tls.version`,
+  `tls.group`, `tls.cipher` (`""` before connect and after a legacy-port logon), database option
+  `adbc.arpeteradata.openssl_version` (no licence needed). `ARPEIO_ADBC_LOG_TLS=1` prints one stderr line
+  per TLS handshake. Releases bundle OpenSSL 3.5; `X25519MLKEM768` is offered first.
 - Legacy port: credentials protected by TeraGSS, but query text and results travel in clear.
 - Cloud / trial: `sslmode=require` on 443, no TTU (`prefer` could fall back to the clear port 1025). The
   trial certificate's CA is not shipped anywhere, so `verify-*` fail (`unable to get local issuer
@@ -220,8 +224,7 @@ with dbapi.connect(driver="arpeteradata", db_kwargs=db_kwargs, autocommit=True) 
 | `unsupported column type code <n> for column <name>` | Cast in SQL |
 | `value out of range for Teradata …` / 5404 | Date outside 1–9999 / fraction into `TIME(0)`, `TIMESTAMP(0)` |
 
-Docs vs driver 0.3.5: the current-database connection option is `adbc.connection.db_schema` (ADBC
-standard; docs: `adbc.connection.current_db_schema`, which the driver rejects as unknown); on close a
+Docs vs driver 0.3.6: on close a
 transaction that only read is committed (`ET` / `COMMIT`) and only one that may have written is rolled
 back (docs: always rolls back); discrete `port` / `login_timeout` / `query_timeout` are not range-checked
 (only URI / connection-string values are); the cloud page shows a validated trial connection while the

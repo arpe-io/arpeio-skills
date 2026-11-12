@@ -5,7 +5,7 @@ set on the **database** before init (Python `db_kwargs`) unless a driver file sa
 
 ## Loading by name in each language
 
-Swap `arpemssql` and the URI for `arpepgsql`, `arpeoracle`, `arpenz` or `arpeteradata` (driver files).
+Swap `arpemssql` and the URI for `arpepgsql`, `arpeoracle`, `arpenz`, `arpeteradata` or `arpedb2` (driver files).
 
 ```python
 # Python: pip install adbc-driver-manager pyarrow
@@ -114,10 +114,10 @@ conn = dbapi.connect(driver="arpepgsql", db_kwargs=db_kwargs)
 | Query → Arrow table | `cur.execute(sql); t = cur.fetch_arrow_table()` |
 | Query → pandas | `cur.fetch_df()` (or `fetch_arrow_table().to_pandas()`) |
 | Stream big results | `reader = cur.fetch_record_batch()` then `for batch in reader: …` (constant memory) |
-| Parameters | `cur.execute(sql, parameters=[…])` with the driver's marker: `?` (SQL Server, Netezza, Teradata), `$1` (PostgreSQL, also Netezza), `:1` / `:name` (Oracle) |
+| Parameters | `cur.execute(sql, parameters=[…])` with the driver's marker: `?` (SQL Server, Netezza, Teradata, Db2), `$1` (PostgreSQL, also Netezza), `:1` / `:name` (Oracle) |
 | Many parameter rows | `cur.executemany(sql, [(…), (…)])` |
 | Bulk load Arrow / pandas | `cur.adbc_ingest("table", data, mode="create" \| "append" \| "replace" \| "create_append", db_schema_name="schema", temporary=False)` – `data` = pyarrow Table / RecordBatch / RecordBatchReader |
-| Rows per result batch | `cur.adbc_statement.set_options(**{"adbc.<prefix>.batch_size": "100000"})` |
+| Rows per result batch | `cur.adbc_statement.set_options(**{"adbc.<prefix>.batch_size": "100000"})` (ArpeDb2: `adbc.arpedb2.buffer_size`) |
 | Transactions | `dbapi.connect(...)` starts with **autocommit off**: `conn.commit()` / `conn.rollback()`; or `dbapi.connect(..., autocommit=True)` |
 | Cancel a running query | `cur.adbc_cancel()` (from another thread) |
 | Driver / server info | `conn.adbc_get_info()` |
@@ -136,18 +136,18 @@ with conn.cursor() as cur:
             w.write_batch(batch)
 ```
 
-## Rules common to the five drivers
+## Rules common to the six drivers
 
 - One ADBC connection = one database session; not for concurrent use from several threads. Run work in
   parallel with one connection per worker.
-- One open result per connection: read it to the end or close the cursor before the next statement
-  (otherwise `INVALID_STATE` "… still open …").
+- One open result per connection (ArpeDb2: up to 64): read it to the end or close the cursor before the
+  next statement (otherwise `INVALID_STATE` "… still open …").
 - Ingest modes: `create` fails if the table exists; `append` needs it; `replace` drops and recreates it;
   `create_append` creates it if missing. Table and column names are quoted as given (case-sensitive).
   The Arrow column names must match the target columns for `append`.
 - After `adbc_ingest` with autocommit off, `conn.commit()` or the rows are lost at close.
 - Every result field carries the server type name in its metadata (`ARPEMSSQL:type`, `ARPEPGSQL:type`,
-  `ARPEORACLE:type`, `ARPENZ:type`, `ARPETERADATA:type`), e.g. `decimal(10,2)`, `VARCHAR2(100)`.
+  `ARPEORACLE:type`, `ARPENZ:type`, `ARPETERADATA:type`, `ARPEDB2:type`), e.g. `decimal(10,2)`, `VARCHAR2(100)`.
 - ADBC errors carry the server error (SQLSTATE / error number) in their details (Python: exception
   `.details`, `.sqlstate`, `.vendor_code`).
 - Partitioned execution and Substrait are not supported.
