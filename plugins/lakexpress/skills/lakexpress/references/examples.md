@@ -1,4 +1,4 @@
-# LakeXpress – Examples (0.6.0)
+# LakeXpress – Examples (0.6.5)
 
 Entry names (`lxdb_postgres`, `source_postgres`, `source_mssql`, `source_oracle`, `s3_01`, `gcs_01`,
 `azure_01`, `onelake_01`, `snowflake_prod`, …) are keys of `credentials.json` (credentials.md). Linux
@@ -93,6 +93,27 @@ Schema `EXT_tpch_1`, external tables + `V_<table>` views. Add `--no_views` to sk
 ```
 
 Schema `INT_production_<YYYYMMDD of the run>`, tables `tpch_1_customer`, …
+
+## Oracle → S3 → Snowflake, exact numbers
+
+The source entry has `"use_adbc": true` next to `ds_type` (credentials.md):
+
+```bash
+./LakeXpress config create \
+  --auth_file credentials.json \
+  --lxdb_auth_id lxdb_postgres \
+  --source_db_auth_id source_oracle_adbc \
+  --source_schema_name SALES \
+  --target_storage_id s3_01 \
+  --publish_target snowflake_prod \
+  --publish_method internal \
+  --unbounded_number_type decimal_strict \
+  --n_jobs 4
+```
+
+`NUMBER` columns without precision become `NUMBER(38,18)`, and the export fails on a value that does
+not fit instead of rounding it. `--unbounded_number_type varchar` keeps every digit as text; without
+the option Snowflake rounds beyond the 18th decimal place (publishing.md).
 
 ## Databricks managed Delta tables
 
@@ -244,7 +265,7 @@ Dataset `lx_tpch_1`. Without `--publish_method internal` and a pattern: external
 ./LakeXpress 'sync[export]' --auth_file credentials.json --lxdb_auth_id lxdb_postgres --sync_id <SYNC_ID>
 ./LakeXpress 'sync[publish]' --auth_file credentials.json --lxdb_auth_id lxdb_postgres --sync_id <SYNC_ID>
 
-# after exit 40: retry the failed tables of the latest incomplete run (then publishes)
+# after exit 40 or 47: retry the failed tables of the latest incomplete run (then publishes)
 ./LakeXpress sync --auth_file credentials.json --lxdb_auth_id lxdb_postgres --sync_id <SYNC_ID> --resume
 ./LakeXpress sync --auth_file credentials.json --lxdb_auth_id lxdb_postgres --sync_id <SYNC_ID> --resume --run_id <RUN_ID>
 

@@ -12,7 +12,7 @@ where, where to publish) in the **LakeXpress DB**, then `sync` runs it, as often
 Goal: produce a **credentials file** (if needed) and **correct, copy-pasteable commands** for the
 user's OS and shell. Never invent hosts, credentials, schema, bucket or account names: ask.
 
-Facts below reflect LakeXpress **0.6.0** (docs checked against the v0.6.0 code). References (load only
+Facts below reflect LakeXpress **0.6.5** (docs checked against the v0.6.5 code). References (load only
 what you need):
 
 | Need | File |
@@ -43,11 +43,15 @@ Each `*_id` is a top-level key of the JSON file passed with `--auth_file`. Any s
 ## Check the installed version
 
 When you can run commands, run `./LakeXpress --version` (Windows: `.\LakeXpress.exe --version`); it
-prints e.g. `LakeXpress 0.6.0 (build 2026-10-26T20:28:13Z)`. Otherwise ask for the version when it
+prints e.g. `LakeXpress 0.6.4 (build 2026-11-11T08:27:18Z)`. Otherwise ask for the version when it
 matters (a rejected option, an unexpected exit code).
 
-- **0.6.0** → use this skill as is.
-- **Older** → some behaviours differ: before 0.6.0 the binary always exited 0 whatever happened, ran
+- **0.6.5** → use this skill as is.
+- **0.6.0 to 0.6.4** → before 0.6.5 there is no `--unbounded_number_type` and Oracle columns get other
+  Snowflake types; before 0.6.3 every source is extracted with FastBCP's native driver unless
+  `"use_adbc": true`; before 0.6.2 the exit codes 41 and 44–47 are not returned, and several bugs
+  listed in troubleshooting.md are not fixed. Suggest upgrading.
+- **Older** → more behaviours differ: before 0.6.0 the binary always exited 0 whatever happened, ran
   30 days from its build date without a license, and came as a Trial (FastBCP bundled) and a Full
   package (FastBCP installed separately); before 0.5.0 FastBCP not found exited 10, and several export
   bugs were not fixed (troubleshooting.md). Check `./LakeXpress <command> --help`, or suggest upgrading.
@@ -73,7 +77,7 @@ matters (a rejected option, an unexpected exit code).
    the `sync` command with `<SYNC_ID>` (or the `--sync_id` chosen), then a short summary with
    assumptions and what to check (exit code, `status`).
 
-## Hard rules (0.6.0)
+## Hard rules (0.6.5)
 
 - **A license file is required**, also for the free trial (it is a 30-day license file emailed by
   https://arpe.io/get-trial?product=LakeXpress). Without one every command except `--help` / `--version`
@@ -91,12 +95,17 @@ matters (a rejected option, an unexpected exit code).
   table `{table}`. Glue uses the schema pattern as database name; BigQuery as dataset name.
 - **External vs internal**: Glue and DuckLake are external only. Fabric needs `"fabric_target":
   "lakehouse"` in its entry for the Lakehouse; without it the Fabric **Warehouse** publisher is used.
-- **Snowflake**: the storage `directory` must equal the Snowflake stage URL.
+- **Snowflake**: the storage `directory` must equal the Snowflake stage URL (checked before publishing).
+  **Oracle → Snowflake**: set `"use_adbc": true` on the source, and choose `--unbounded_number_type`
+  for `NUMBER` columns without precision (publishing.md).
+- **ADBC extraction** is the default for SQL Server, PostgreSQL and Teradata; `"use_adbc": false`, next
+  to `ds_type`, selects FastBCP's native driver. Oracle uses ADBC only with `"use_adbc": true`. The
+  Parquet types differ between the two (export.md), and ADBC needs the ADBC block of the license.
+- **Databricks**: `auth_mode` `token` only (`oauth` is rejected).
 - **Incremental**: types `date`, `datetime`, `int`, `bigint`, `auto` only (not `timestamp`). An invalid
   spec still creates the configuration (without it): check the exit code, then `config delete` and
   recreate. `upsert` / `delete_insert` need a source primary key and are not supported on Glue or
-  Fabric Lakehouse. Use a PostgreSQL, SQL Server or SQLite LakeXpress DB for incremental syncs (with
-  DuckDB the incremental tables are not saved, exit 0).
+  Fabric Lakehouse.
 - **SQLite / DuckDB LakeXpress DB**: absolute `filepath`, one machine, one sync at a time.
 - **`--error_action fail`** (default) stops at the first failed table; `continue` exports the others.
 - Use **long flags** in generated commands (`--auth_file`, `--include`, `--exclude`, `--fastbcp_p`), not
@@ -138,14 +147,15 @@ PostgreSQL schema `sales` to S3, published as Snowflake internal tables, 4 table
 
 ## After a run
 
-- **Exit code**: `0` success (also when no table matched: check the log), `40` some tables failed
-  (export or publish), `10` configuration error, `12` connection error, `13` license, `30` / `34`
-  FastBCP not found / too old (environment.md).
+- **Exit code**: `0` success, `40` some tables failed to export (resume), `41` every table failed
+  (nothing published), `44` no table matched, `45` no run to resume or to publish, `46` export fine
+  but publishing failed, `47` both had failures, `10` configuration error, `12` connection error,
+  `13` license, `30` / `34` FastBCP not found / older than 1.4.0 (environment.md).
 - `status --sync_id <SYNC_ID>` (add `--verbose` for every run); the log `lx_YYYYMMDD_HHMMSS_<run_id>.log`
   ends with `RUN SUMMARY` / `Export: n/m tables succeeded` and the failed tables.
 - To retry failed tables: `sync --sync_id <SYNC_ID> --resume` (latest incomplete run, or add
   `--run_id <RUN_ID>`). It publishes when the resumed run completes.
-- After a run with failures, `sync` publishes the **latest completed run**, which is an earlier run if
+- After a run with failed tables (exit 40), `sync` publishes the **latest completed run**, which is an earlier run if
   there is one: resume first, or publish a given run with `'sync[publish]' --run_id`.
 - A crashed run blocks the next ones (`already running`): `cleanup --sync_id <SYNC_ID>`; for incremental
   locks, `lxdb locks` then `lxdb release-locks --confirm`.

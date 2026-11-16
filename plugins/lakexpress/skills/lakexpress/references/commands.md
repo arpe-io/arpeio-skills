@@ -1,10 +1,10 @@
-# LakeXpress – Commands and flags (0.6.0)
+# LakeXpress – Commands and flags (0.6.5)
 
 ```text
 LakeXpress [--version] [--no_banner] COMMAND [SUBCOMMAND] [OPTIONS]
 ```
 
-Options go **after** the command. `--version` prints e.g. `LakeXpress 0.6.0 (build 2026-10-26T20:28:13Z)`.
+Options go **after** the command. `--version` prints e.g. `LakeXpress 0.6.4 (build 2026-11-11T08:27:18Z)`.
 
 | Command | Purpose |
 |---|---|
@@ -22,8 +22,8 @@ Options go **after** the command. `--version` prints e.g. `LakeXpress 0.6.0 (bui
 | `--auth_file PATH` (`-a`) | Credentials JSON. Required, except for `run` |
 | `--lxdb_auth_id ID` | LakeXpress DB entry. Required, except for `run` |
 | `--log_level` | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |
-| `--log_dir PATH` | Log folder (default: current directory) |
-| `--no_progress` | No progress bar |
+| `--log_dir PATH` | Folder of the run log files, created if needed (default: current directory). Used by `sync`, `'sync[export]'`, `'sync[publish]'` and `run` (ignored before 0.6.2) |
+| `--no_progress` | No progress bars (export and publish) |
 | `--no_banner` | No startup banner |
 | `--quiet_fbcp` | Don't copy FastBCP output into the LakeXpress log (statistics still recorded) |
 | `--license TEXT` / `--license_file PATH` | License (see environment.md) |
@@ -72,6 +72,7 @@ Required: `--auth_file`, `--lxdb_auth_id`, `--source_db_auth_id`, and at `sync` 
 | | `--publish_schema_pattern P` | `EXT_{schema}` (external), `{schema}` (internal) | Target schema; tokens below, never `{table}` |
 | | `--publish_table_pattern P` | `{table}` | Target table; must contain `{table}` |
 | | `--no_views` | views created | Snowflake external: no `V_` views |
+| | `--unbounded_number_type` | `decimal` | Oracle source published to Snowflake: type of a `NUMBER` declared without precision. `decimal`, `varchar` or `decimal_strict` (publishing.md). 0.6.5+ |
 | | `--pk_constraints` | off | Source primary keys on internal tables (Snowflake, Databricks, Fabric, BigQuery, MotherDuck, Redshift) |
 | Metadata | `--generate_metadata` | off | CDM `manifest.json` + `.cdm.json` next to the Parquet files |
 | | `--manifest_name NAME` | schema or database name | CDM manifest name |
@@ -96,12 +97,13 @@ There is no command to modify a configuration: delete it and create it again.
 |---|---|---|
 | `sync` | `--sync_id` (required), `--resume`, `--run_id`, `--fastbcp_dir_path` | Export, then publish the latest **completed** run if the configuration has a publish target and the export exited 0 or 40 |
 | `'sync[export]'` | `--sync_id`, `--fastbcp_dir_path` | Export only (no `--resume`) |
-| `'sync[publish]'` | `--sync_id`, `--run_id` (default: latest completed run) | Publish files already exported. Nothing to publish: exit 0. No completed run: exit 10 |
+| `'sync[publish]'` | `--sync_id`, `--run_id` (default: latest completed run) | Publish files already exported. No publish target: exit 0. No completed run: exit 45. Publishing failed: exit 46 |
 
 - `--resume` resumes the latest incomplete run of the configuration, or the `--run_id` given: pending and
-  failed tables are exported again, completed ones are skipped. Errors (run not found, run of another
-  sync, no incomplete run, run already running) exit 10.
-- `--fastbcp_dir_path` on `sync` overrides the folder saved in the configuration.
+  failed tables are exported again, completed ones are skipped. No run to resume, or a `--run_id` that
+  does not exist: exit 45. A run of another sync, or a run already running: exit 10.
+- `--fastbcp_dir_path` on `sync` overrides the folder saved in the configuration (0.6.2+; ignored before).
+- `sync` publishes after an export that exited 0 or 40; when every table failed (41) it does not.
 - Only one run of a configuration at a time: a run left `running` by a crash blocks the next ones
   (`… is already running … use 'cleanup'`, exit 10).
 

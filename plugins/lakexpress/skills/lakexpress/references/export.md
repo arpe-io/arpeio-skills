@@ -2,6 +2,28 @@
 
 All data is read by FastBCP and written as Parquet (compression `--compression_type`, default `Zstd`).
 
+## Extraction path: ADBC or native
+
+FastBCP reads SQL Server, PostgreSQL and Teradata through the arpe.io ADBC drivers it embeds, by
+default (0.6.3+), and Oracle with `"use_adbc": true`; `"use_adbc": false` on the source selects its
+native driver (credentials.md). MySQL, MariaDB and SAP HANA are always native. The Parquet files
+differ:
+
+| Source column | Native | ADBC |
+|---|---|---|
+| PostgreSQL `time`, `timestamp`; SQL Server `datetime2`; Oracle `TIMESTAMP` | milliseconds | microseconds |
+| PostgreSQL `timestamptz` | timestamp without time zone | UTC timestamp |
+| SQL Server `datetimeoffset`, Oracle `TIMESTAMP WITH TIME ZONE` | text such as `1/1/1970 12:00:00 AM +00:00` | UTC timestamp |
+| PostgreSQL `jsonb` | binary | text |
+| Oracle `NUMBER` without precision | `decimal(38,18)`, truncated beyond 18 decimal places | text (`decimal(38,18)` with `--unbounded_number_type decimal_strict`) |
+| Oracle `NUMBER(p)`, `p` ≤ 9 | 32-bit integer | 64-bit integer |
+| Oracle `DATE`, `TIMESTAMP` before 1582-10-15 | same label (a different day) | same day on the Gregorian calendar (`0001-01-01` becomes `0000-12-30`) |
+
+Oracle stays native by default because the publish targets declare a `NUMBER` without precision as
+`decimal(38,18)` while ADBC writes it as text; for Snowflake, ADBC is the recommended path
+(publishing.md). With FastBCP 1.6.8 (bundled in 0.6.5), MySQL and MariaDB `BIGINT UNSIGNED` and `BIT`
+columns are unsigned 64-bit integers in Parquet instead of text.
+
 ## Parallelism
 
 | Level | Flag | Default |
@@ -30,7 +52,8 @@ the source: total processes ≈ `n_jobs × fastbcp_p`.
 | `Ntile` | any | numeric column (even chunks) |
 | `Timepartition` | any | `(date_col,year)`, `(date_col,year,month)`, `(date_col,year,month,day)`, `(date_col,year,week)` |
 
-`Timepartition` writes Hive-style folders: `year=2008/month=01/<table>.parquet`.
+`Timepartition` writes Hive-style folders: `year=2008/month=01/<table>.parquet`; rows whose date is
+NULL go to a `<col>=NULL/` folder.
 
 ## Per-table override: `--fastbcp_table_config`
 
@@ -40,8 +63,9 @@ the source: total processes ≈ `n_jobs × fastbcp_p`.
 
 - The flag can be repeated or entries joined with `;`.
 - **The degree is required** (integer): an entry without a valid degree is silently ignored.
-- Method and key can be empty to keep the automatic method: `orders:::4`; no key for `Ctid`, `Rowid`,
-  `Physloc`: `orders:Ctid::4`.
+- Method and key can be empty to keep the automatic method with the given degree: `orders:::4` (0.6.2+;
+  before, such a table was exported sequentially); no key for `Ctid`, `Rowid`, `Physloc`:
+  `orders:Ctid::4`.
 - Without a schema, the entry applies to that table in every schema (warning logged).
 - A database-specific method used on another database (e.g. `Ctid` on SQL Server) is replaced by the
   right one, with a warning.
@@ -71,8 +95,8 @@ Priority: `partition_columns` > `--fastbcp_table_config` > automatic.
 - `--include` / `--exclude`: comma lists of table `LIKE` patterns (`%` any characters, `_` one); they can
   be combined (`--include "report_%" --exclude "%_test"`).
 - `--min_rows` / `--max_rows`: by row count.
-- Tables and views are exported. A selection that matches nothing ends with exit 0 and the warning `No
-  tables found to export`.
+- Tables and views are exported. A selection that matches nothing ends with exit 44 (exit 0 and the
+  warning `No tables found to export` before 0.6.2).
 
 ## Output layout
 

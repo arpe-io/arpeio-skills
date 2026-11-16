@@ -29,7 +29,8 @@ LakeXpress creates its tables on `lxdb init` or on first use. The entry is check
 
 - SQLite / DuckDB: use an **absolute** path (a relative one is resolved from the current directory, so
   another directory means a new, empty LakeXpress DB); one machine, one sync at a time.
-- For incremental syncs use PostgreSQL, SQL Server or SQLite (troubleshooting.md: DuckDB).
+- Incremental syncs work with every backend since 0.6.2 (before, DuckDB did not save the incremental
+  tables: troubleshooting.md).
 - Oracle, MariaDB, SAP HANA and Teradata cannot be the LakeXpress DB.
 
 ```json
@@ -51,13 +52,13 @@ LakeXpress creates its tables on `lxdb init` or on first use. The entry is check
 ## Sources
 
 The source user only needs read access. `info.database` is the default source database
-(`config create --source_db_name` overrides it).
+(`config create --source_db_name` overrides it). `host` is accepted instead of `server`.
 
 | `ds_type` | `auth_mode` and `info` | Read permissions (docs) |
 |---|---|---|
-| `postgres` | `classic`: `username`, `password`, `server`, `port` (5432), `database`, `sslmode` (default `prefer`). `connection_string`: `connection_string` only (libpq form, e.g. `host=… port=5432 dbname=… user=… password=… sslmode=require`) | `GRANT USAGE ON SCHEMA s`, `GRANT SELECT ON ALL TABLES IN SCHEMA s` |
-| `mssql` | `classic` (`username`, `password`, `server`, `port` 1433, `database`, `encrypt` default `true`, `trust_server_certificate` default `false`); `integrated` (Windows auth: `server`, `port`, `database`, no user/password); `connection_string` (ODBC string, e.g. `DRIVER={ODBC Driver 18 for SQL Server};SERVER=host,1433;DATABASE=…;UID=…;PWD=…;Encrypt=yes;TrustServerCertificate=yes;`) | `GRANT SELECT ON SCHEMA::dbo`, `GRANT VIEW DEFINITION ON SCHEMA::dbo` |
-| `oracle` | `classic` only: `username`, `password`, `server`, `port` (1521), `database` (**service name or SID**), `lib_dir` (Instant Client folder = thick mode, needed for Oracle 11.2 and earlier; omit for thin mode, 12.1+) | `GRANT SELECT_CATALOG_ROLE` (Rowid parallel export, metadata) |
+| `postgres` | `classic`: `username`, `password`, `server`, `port` (5432), `database`, `sslmode` (default `prefer`, also used by the export). `connection_string`: `connection_string` only (libpq form, e.g. `host=… port=5432 dbname=… user=… password=… sslmode=require`, or a `postgresql://` URI) | `GRANT USAGE ON SCHEMA s`, `GRANT SELECT ON ALL TABLES IN SCHEMA s` |
+| `mssql` | `classic` (`username`, `password`, `server`, `port` 1433, `database`, `encrypt` default `true`, `trust_server_certificate` default `false`, `application_intent` `ReadWrite` (default) or `ReadOnly`); `integrated` (Windows auth: `server`, `port`, `database`, no user/password); `connection_string` (ODBC string, e.g. `DRIVER={ODBC Driver 18 for SQL Server};SERVER=host,1433;DATABASE=…;UID=…;PWD=…;Encrypt=yes;TrustServerCertificate=yes;`) | `GRANT SELECT ON SCHEMA::dbo`, `GRANT VIEW DEFINITION ON SCHEMA::dbo` |
+| `oracle` | `classic` only: `username`, `password`, `server`, `port` (1521), `database` (**service name**; a SID is not accepted), `lib_dir` (Instant Client folder = thick mode, needed for Oracle 11.2 and earlier; omit for thin mode, 12.1+) | `GRANT SELECT_CATALOG_ROLE` (Rowid parallel export, metadata) |
 | `mysql` | `classic` only: `username`, `password`, `server` (default `localhost`), `port` (3306), `database` (optional) | `GRANT SELECT ON db.*` |
 | `mariadb` | as `mysql` (use `mariadb`, not `mysql`, to label the source correctly) | `GRANT SELECT ON db.*` |
 | `saphana` | `classic`: `username`, `password`, `server`, `port` (39017), `database` (tenant, MDC only). `connection_string`: ODBC string `DRIVER={HDBODBC};SERVERNODE=host:39017;DATABASE=…;UID=…;PWD=…` | `SELECT` on the schema, `SYS.TABLES`, `SYS.COLUMNS` |
@@ -69,6 +70,41 @@ The source user only needs read access. `info.database` is the default source da
 - SAP HANA: FastBCP needs the HDBDOTNETCORE runtime; set the `HDBDOTNETCORE` environment variable to its
   folder before running LakeXpress.
 - `port` is a JSON number.
+- SQL Server: `encrypt` and `trust_server_certificate` also apply to the export since 0.6.2, so with the
+  defaults the export verifies the server certificate. `application_intent` is used by LakeXpress's
+  own connection and by the export; `"ReadOnly"` sends both to a readable secondary behind an Always
+  On listener (incremental.md).
+- `connection_string`: LakeXpress converts the string for FastBCP (0.6.2+). To pass FastBCP options
+  that do not convert, add `info.fastbcp_connection_string` (SQL Server: SqlClient form; PostgreSQL:
+  Npgsql form), which FastBCP receives as is.
+- Integrated authentication on a source other than SQL Server stops the sync before the export (exit 10).
+
+### ADBC extraction (`use_adbc`)
+
+`use_adbc` is `true` or `false` (anything else: exit 10), at the **same level as `ds_type`**, not in
+`info`: `"source_oracle": {"ds_type": "oracle", "auth_mode": "classic", "use_adbc": true, "info": {…}}`. It only changes how FastBCP reads the data: discovery still uses LakeXpress's own drivers. The
+run log shows the path once, e.g. `Source extraction: adbc_pgsql (ADBC)`.
+
+| Source | Default | Other choice |
+|---|---|---|
+| SQL Server | ADBC (`adbc_mssql`) | native (`mssql`) with `"use_adbc": false` |
+| PostgreSQL | ADBC (`adbc_pgsql`) | native (`pgcopy`) with `"use_adbc": false` |
+| Teradata | ADBC (`adbc_teradata`) | native (`teradata`) with `"use_adbc": false` |
+| Oracle | native (`oraodp`) | ADBC (`adbc_oracle`) with `"use_adbc": true`; recommended when publishing to Snowflake |
+| MySQL, MariaDB, SAP HANA | native | none (`"use_adbc": true` logs a warning) |
+
+- Before 0.6.3 the native driver was the default for every source.
+- ADBC needs the ADBC block of the license file (exit 13 without it, environment.md) and ships for
+  Linux x64 and Windows x64.
+- The Parquet files differ between ADBC and native (export.md).
+- Teradata through ADBC uses TLS on the HTTPS port (443) and needs no client software. A server
+  without TLS needs the Teradata Tools and Utilities (TTU) client for the legacy port (1025, or
+  `port`), found through `ARPETERADATA_TTU_PATH`, `/opt/teradata/client` or the system library path;
+  or set `"use_adbc": false`. In a `connection_string`, `sslmode`, `https_port`, `sslca` and
+  `sslcapath` reach the ADBC driver (`"sslmode": "DISABLE"` = legacy port).
+- Oracle through ADBC needs no Instant Client (`lib_dir` only serves LakeXpress's own connection).
+  Network encryption and data integrity default to `accepted`; change them with the
+  `FASTBCP_ADBC_ENCRYPTION` and `FASTBCP_ADBC_DATA_INTEGRITY` environment variables.
 
 ```json
 "source_oracle": {
@@ -120,10 +156,10 @@ region = us-east-1
 | Target | `ds_type` | `auth_mode` and `info` |
 |---|---|---|
 | Snowflake | `snowflake` | `password`: `account`, `user`, `password`, `warehouse`, `database`, `stage`. `pat`: `token` instead of `password` (needs a network policy for the user). Also `keypair` (`private_key_path`, optional `private_key_passphrase`) and `oauth` (`oauth_token` or `authenticator`) |
-| Databricks | `databricks` | `token`: `host` (workspace host name), `http_path` (SQL warehouse), `access_token` (PAT), `catalog` (Unity Catalog, required), optional `schema`. `oauth` also exists |
+| Databricks | `databricks` | `token`: `host` (workspace host name), `http_path` (SQL warehouse), `access_token` (PAT), `catalog` (Unity Catalog, required), optional `schema`. Only `token`: `oauth` is rejected with an error (0.6.2+; for a service principal, put its token in `access_token`) |
 | Microsoft Fabric Lakehouse | `fabric` + **`"fabric_target": "lakehouse"`** at the entry's top level | `service_principal`: `workspace_id`, `lakehouse_id`, `lakehouse_name`, `sql_endpoint` (host name only), `azure_client_id`, `azure_tenant_id`, `azure_client_secret` |
 | BigQuery | `bigquery` | `profile`: `project_id`, `location` (default `US`; match the bucket region), `profile` (service-account JSON key path) |
-| Amazon Redshift | `redshift` | `classic`: `host`, `port` (5439), `database` (`dev`), `username`, `password`, `iam_role` (ARN, required), `region` (default `us-east-1`). `iam`: `host`, `port`, `database`, `cluster_identifier`, `iam_role`, `region` |
+| Amazon Redshift | `redshift` | `classic`: `host`, `port` (5439), `database` (`dev`), `username`, `password`, `iam_role` (ARN, required: publishing stops with an error without it), `region` (default `us-east-1`). `iam`: `host`, `port`, `database`, `cluster_identifier`, `iam_role`, `region` |
 | MotherDuck | `motherduck` | `token`: `database`, `token`. `env`: `database` only, token read from the `motherduck_token` environment variable |
 | AWS Glue | `aws_glue` (or `glue`) | `profile`: `profile`, `region`. `keys`: `aws_access_key_id`, `aws_secret_access_key`, `region`. `role`: `role_arn`, optional `external_id`, `region`. All accept optional `catalog_id` (another account's catalog) |
 | DuckLake | `sqlite` / `duckdb` (`info.filepath`, default `ducklake_catalog.sqlite` / `.duckdb` in the working directory) or `postgres` / `mysql` (`server`, `port`, `database`, `username`, `password`; `postgres` also `schema` for the catalog's own tables) | The entry **is** the DuckLake catalog |

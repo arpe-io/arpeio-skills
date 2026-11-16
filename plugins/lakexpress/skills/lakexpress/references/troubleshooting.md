@@ -1,4 +1,4 @@
-# LakeXpress – Troubleshooting and known 0.6.0 behaviours
+# LakeXpress – Troubleshooting and known 0.6.5 behaviours
 
 ## Known behaviours to plan around
 
@@ -7,21 +7,28 @@
 | `config create` accepts a configuration with no `--output_dir` / `--target_storage_id`; every `sync` then fails (exit 10, `No output destination specified`) | Always give one of them; otherwise `config delete --confirm` and recreate |
 | Publish patterns are checked by `sync`, not by `config create` (exit 10, `Table pattern must include {table}` / `Invalid tokens … {table}`) | Table pattern contains `{table}`; schema pattern never does (all targets, not only Glue) |
 | An invalid `--incremental_table` (e.g. type `timestamp`) exits 10 but the configuration is already saved, without incremental tables | Fix the spec, `config delete --sync_id … --confirm`, create again |
-| DuckDB LakeXpress DB: `--incremental_table` entries are not saved (`Failed to create incremental table config: … 'lastrowid'`), `config create` still exits 0; the tables are then fully exported each run | Use a PostgreSQL, SQL Server or SQLite LakeXpress DB for incremental syncs |
+| DuckDB LakeXpress DB before 0.6.2: `--incremental_table` entries are not saved (`Failed to create incremental table config: … 'lastrowid'`), `config create` still exits 0; the tables are then fully exported each run | Fixed in 0.6.2; before, use a PostgreSQL, SQL Server or SQLite LakeXpress DB for incremental syncs |
 | After a run with failed tables (exit 40), `sync` publishes the **latest completed run**, i.e. an earlier run if there is one (or nothing: `No completed export run found for publish`) | `sync --resume` first (it publishes once the run completes), or publish a given run: `'sync[publish]' --run_id <RUN_ID>` |
 | A run that crashed stays `running` and blocks the next ones (`… is already running`, exit 10) | `cleanup --sync_id … --status running` (try `--dry-run` first) |
 | Incremental locks left by a crash block the tables | `lxdb locks`, then `lxdb release-locks --confirm` (`--max_age_hours`, `--table_id`) |
 | `--error_action fail` (default) stops at the first failed table | `--error_action continue` to export the rest, then `--resume` |
-| No table matches the schema / table filters: exit 0, warning `No tables found to export` | Check `--source_schema_name` (case, patterns) and the source permissions |
+| No table matches the schema / table filters: exit 44 and the run is recorded as `failed` (exit 0 before 0.6.2; in 0.6.0 the run also stayed `running` and blocked the next ones until `cleanup`) | Check `--source_schema_name` (case, patterns) and the source permissions |
 | A configuration cannot be changed | `config delete --confirm` + `config create`; incremental watermarks start again |
 | `--sub_path "daily/$(date +%Y%m%d)"` on `config create` is evaluated once and stored: every later sync writes to that same folder | For dated publish names use `{date}` / `{timestamp}` in the publish patterns; for a new storage folder per day, create a configuration per day |
 | `--fastbcp_table_config` entries without a valid integer degree are silently ignored | Always end with `:<degree>` (`orders:Ctid::4`) |
+| `--fastbcp_table_config` with an empty method (`orders:::4`) exported the table sequentially before 0.6.2 | 0.6.2+ keeps the automatic method with the given degree; before, name the method |
+| SQL Server, PostgreSQL and Teradata are extracted through ADBC since 0.6.3: some Parquet types change (timestamps with time zone become UTC timestamps, microseconds are kept, `jsonb` is text) | Expected (export.md); `"use_adbc": false` on the source keeps the native driver |
+| Oracle → Snowflake column types changed in 0.6.5 (`DATE` → `TIMESTAMP_NTZ(0)`, `TIMESTAMP(n)` → `TIMESTAMP_NTZ(n)`, `NUMBER` without precision → `NUMBER(38,18)`…). A full publish recreates its tables; a table kept across runs (incremental or row-level strategies) keeps its old types | Drop the table, or publish to a new schema, before the first run with 0.6.5 |
+| Oracle `NUMBER` without precision published to Snowflake: digits beyond the 18th decimal place are rounded, and values of 10^20 or more are rejected | `--unbounded_number_type varchar` or `decimal_strict` with `"use_adbc": true` (publishing.md) |
+| With `--incremental_safety_lag`, before 0.6.2 the lag was only applied to empty tables: rows committed late with a value near `MAX(column)` could be lost | Upgrade to 0.6.2+ |
+| SQL Server behind an Always On listener with read-only routing, before 0.6.2: the export read a secondary while the watermark came from the primary, and rows could be skipped | 0.6.2+: both use `application_intent` (default `ReadWrite` = primary) |
 | `$env{VAR}` not set anywhere in the file stops every command (exit 10), even for unused entries | Set all referenced variables, or split the file |
 | SQLite / DuckDB LakeXpress DB with a relative `filepath` | Use an absolute path; otherwise each working directory gets its own empty DB |
 | SQL Server LakeXpress DB or source with a self-signed certificate: `pyodbc` TLS fails and LakeXpress falls back to `pymssql` (classic auth only) | Add `"trust_server_certificate": true` to `info` |
 | Relative `--output_dir` before 0.4.9 was resolved from FastBCP's `engine/` folder | 0.4.9+ saves it as an absolute path; with older versions pass an absolute path |
 | Fabric entry without `"fabric_target": "lakehouse"` uses the Fabric **Warehouse** publisher | Add it for the Lakehouse |
-| Snowflake external tables don't see new files | `ALTER EXTERNAL TABLE … REFRESH;`; the storage `directory` must equal the stage URL |
+| Snowflake external tables don't see new files | `ALTER EXTERNAL TABLE … REFRESH;` |
+| Snowflake publishing stops before creating any table, with an error naming the stage URL and the storage `directory` (0.6.2+) | Make them the same folder (`DESC STAGE …`); a `directory` that is a parent of the stage URL is not accepted. `gcs://` / `azure://` on the Snowflake side match `gs://` / `abfss://` |
 | `--generate_metadata` with OneLake storage can write wrong paths in the CDM files | Check them, or omit the flag |
 | DuckLake publishes tables one at a time, whatever `--n_jobs` | Expected |
 | Incremental (query) export of a large table with `--fastbcp_p` > 1: a physical method (`Ctid`, `Rowid`, `Physloc`) is replaced by `None` with a warning (0.5.0+; before, the export failed) | For parallel incremental exports use a key-based method (`Ntile`, `RangeId`) in `--fastbcp_table_config` |
@@ -38,6 +45,7 @@
 | Fabric: `fabric_target` "omitted or set to anything else" → Warehouse | Omitted or `"warehouse"` → Warehouse; use exactly `"lakehouse"` for the Lakehouse |
 | Azure recipe: `"directory": "abfss://datalake.dfs.core.windows.net/exports"` | Needs the container: `abfss://<container>@<account>.dfs.core.windows.net/exports` |
 | Daily snapshot recipes put `$(date +%Y%m%d)` in `--sub_path` of `config create` | The value is fixed when the configuration is created |
+| 0.6 docs, `config create` page: `--pk_constraints` "not applied on BigQuery" | Applied since 0.6.2 (`PRIMARY KEY (...) NOT ENFORCED` on the native tables LakeXpress creates), as the BigQuery page says |
 
 ## Common errors
 
@@ -53,11 +61,23 @@
 | `No LakeXpress licence found. Get a free 30-day trial licence at https://arpe.io…` (exit 13) | Save the emailed license as `~/.lakexpress/license.lic` / `%APPDATA%\LakeXpress\license.lic`, or pass `--license_file` (environment.md) |
 | License expired (exit 13) | Trial over (30 days) or subscription ended: a new license file from arpe.io, same place; no reinstall |
 | `FastBCP directory path is required for export operations` / `FastBCP executable not found in …` (exit 30; 10 before 0.5.0) | Keep `engine/` next to the binary, or pass `--fastbcp_dir_path` (or `sync --fastbcp_dir_path`) |
-| Exit 34 | FastBCP older than 0.30.4: use the bundled one |
-| FastBCP license error in the job error (FastBCP exit 99/100) | License issued before 2026-10-26 (no FastBCP block) and no `FastBCP.lic`: request an updated license |
-| ADBC source (`use_adbc: true`) stops with exit 13 | The license has no ADBC driver block: request an updated license, or set `ARPEIO_ADBC_LICENCE_FILE` |
+| Exit 34 | FastBCP older than 1.4.0 (`--fastbcp_dir_path` pointing to an old FastBCP): use the bundled one |
+| Exit 13 during the export, FastBCP license error (FastBCP exit 99/100) | License issued before 2026-10-26 (no FastBCP block) and no `FastBCP.lic`: request an updated license, then `sync --resume` |
+| A SQL Server, PostgreSQL, Teradata (or Oracle with `use_adbc: true`) source stops with exit 13 before the export | The license has no ADBC driver block: request an updated license, set `ARPEIO_ADBC_LICENCE_FILE`, or set `"use_adbc": false` on the source |
+| `use_adbc` rejected (exit 10) | It must be the JSON boolean `true` or `false`, next to `ds_type` |
+| `--unbounded_number_type … is only supported with a Snowflake publish target` (exit 10) | `varchar` and `decimal_strict` need `--publish_target` to be a Snowflake entry |
+| `--unbounded_number_type decimal_strict needs the ADBC driver` (exit 10) | Set `"use_adbc": true` on the Oracle source |
+| Oracle export fails naming a column and a value, with `decimal_strict` | The value does not fit `NUMBER(38,18)` (e.g. `1/3`, `1E-20`): use `varchar`, or `decimal` to let Snowflake round |
+| SQL Server export fails on the server certificate after upgrading to 0.6.2+ | The export now uses the entry's TLS settings: `"trust_server_certificate": true` for a self-signed certificate |
+| Teradata export through ADBC cannot connect | No TLS on port 443 and no TTU client: install TTU (or set `ARPETERADATA_TTU_PATH`), or `"use_adbc": false` |
+| Databricks `auth_mode: "oauth"` rejected | Use `"token"` (a service principal's token goes in `access_token`) |
+| Redshift publishing stops: no `iam_role` | Add the role ARN to the Redshift entry (before 0.6.2 it created empty tables and reported success) |
+| Exit 41 / 46 / 47 | Every table failed (nothing published) / publishing failed after a good export (`'sync[publish]'` again) / both had failures (`sync --resume`) |
+| Exit 45 | `--resume` with no incomplete run or an unknown `--run_id`; `'sync[publish]'` with no completed run |
 | Every command exits 0 even on failure | LakeXpress before 0.6.0: read the log, or upgrade |
-| `auth_mode: connection_string` source: FastBCP `Unknown argument found` (before 0.5.0) | Fixed in 0.5.0; or use `classic` |
+| `auth_mode: connection_string` source: FastBCP `Unknown argument found` (before 0.5.0), or the export rejects the string (before 0.6.2) | 0.6.2+ converts the string for FastBCP (`info.fastbcp_connection_string` to set it yourself); or use `classic` |
+| `--log_dir` ignored, logs in the current directory (before 0.6.2) | Fixed in 0.6.2 |
+| Publishing with a PostgreSQL LakeXpress DB logs `column "table_created" is of type boolean but expression is of type integer` (0.6.0) | Fixed in 0.6.1; the data was published |
 | Teradata schema pattern (`SALES%`) matches nothing (before 0.5.0) | Fixed in 0.5.0; or list the databases |
 | SQLite LakeXpress DB: every table exported single-threaded whatever `--fastbcp_p` (before 0.5.0) | Fixed in 0.5.0 |
 | `Failed to connect to source database` (exit 12) | Host, port, `database` (Oracle: service name), firewall, credentials; `--log_level DEBUG` |
@@ -68,7 +88,7 @@
 | Linux binary: `libcrypto.so.3: version 'OPENSSL_3.3.0' not found` (0.4.5–0.4.6) | Upgrade to 0.4.7+ |
 | Oracle `ORA-12154` / `ORA-28000` / thick-mode library not found | Service name / account locked (`ALTER USER … ACCOUNT UNLOCK`) / `lib_dir` and `LD_LIBRARY_PATH`; 12.1+: remove `lib_dir` (thin mode) |
 | SAP HANA export fails in FastBCP | Set `HDBDOTNETCORE` to the runtime folder |
-| Snowflake: files not found | Storage `directory` ≠ stage URL |
+| Snowflake: files not found (before 0.6.2) | Storage `directory` ≠ stage URL; 0.6.2+ stops with an error instead |
 | BigQuery `Dataset not found` | `location` of the entry vs bucket region |
 | Databricks external tables fail | Missing storage credential / external location for the S3 path |
 | MotherDuck `No files found that match the pattern` / `Missing or invalid credentials` | The storage entry used to create the `lakexpress_storage` secret is wrong (profile not resolvable…); test `SELECT count(*) FROM read_parquet('s3://…/*.parquet')` |

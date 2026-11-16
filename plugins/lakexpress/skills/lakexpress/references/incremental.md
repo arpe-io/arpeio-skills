@@ -35,16 +35,30 @@ was saved, without its incremental tables: `config delete --sync_id … --confir
 
 ## How the bounds are computed
 
-| Column type | Upper bound `d_new` |
-|---|---|
-| `date`, `datetime` | run start time − `--incremental_safety_lag` seconds (not `MAX(column)`) |
-| `int`, `bigint`, `auto` | `MAX(column)` in the source |
+Each export has a lower bound `d_old` (the previous watermark, none on the first run) and an upper
+bound `d_new`, read from the source at the start of the run:
 
+| Case | Upper bound `d_new` |
+|---|---|
+| Any type, no safety lag | `MAX(column)` |
+| `date`, `datetime` with `--incremental_safety_lag` | `min(MAX(column), now − lag)` |
+| Empty table, `date` / `datetime` | `now − lag` |
+
+- `now` is the **source's** clock (`CURRENT_TIMESTAMP`), since the column holds its values; UTC with a
+  warning if it cannot be read.
 - First run (no watermark): `WHERE column <= d_new` (all existing rows).
 - Next runs: `WHERE column > d_old AND column <= d_new` (`>=` with `:i`); `d_old` is the previous `d_new`.
-- The safety lag holds back the most recent rows until the next run (late-arriving data); it does not
-  look further back. Rows arriving later with an older timestamp than `d_old` are missed.
+- Without a lag, a row committed later with a value lower than or equal to the watermark is never
+  exported (long transactions, timestamp set before the commit). Set `--incremental_safety_lag` to the
+  longest delay between a row's timestamp and its commit: rows newer than `now − lag` wait for the
+  next run. For `int` / `bigint` columns, choose one that only grows as rows are written.
+- The upper bound never goes below the stored watermark (e.g. after raising the lag): the table then
+  exports no rows and its watermark stays.
 - The watermark is updated only for tables that exported successfully.
+- SQL Server behind an Always On listener: `MAX(column)` and the export use the same
+  `application_intent`. With `"ReadOnly"` and several secondaries, add a lag larger than the replica
+  lag, or point `server` at one secondary.
+- Before 0.6.2 the lag was applied to empty tables only.
 
 ## Loading strategies (what the publish step does with the new rows)
 
@@ -98,8 +112,8 @@ next sync exports it as a new baseline.
 
 ## Tips
 
-- Use a PostgreSQL, SQL Server or SQLite LakeXpress DB (with DuckDB, 0.6.0 still does not save the incremental
-  tables).
+- Every LakeXpress DB backend works since 0.6.2; before, use PostgreSQL, SQL Server or SQLite (DuckDB
+  did not save the incremental tables).
 - Duplicates after re-running: use `!upsert` (where supported) or deduplicate at query time.
 - To track both inserts and updates on different columns, use two configurations.
 - `--log_level DEBUG` on `sync` shows the bounds used per table.
