@@ -122,8 +122,6 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
 | `--port` | Used in many examples, absent from the parameter page | Accepted; for PostgreSQL `host:port` in `--server` also works |
 | Connection types `nzoledb`, `nzcopy` | In examples / release notes, not in the connection type table | Use only if the user asks for them; mention they are not in the main table |
 | `hanaexport` | Shown in older docs' examples; the 1.7 release notes say it was refused by `--connectiontype` for a long time, and remove it | Never generate it: use `hana` |
-| `DBPartition` on Db2 | The summary table of the Parallel Parameters page lists SQL Server, PostgreSQL, Oracle, MySQL, Teradata; the DBPartition table below it and the 1.7 release notes add Db2 for LUW (`adbc_db2`) | `DBPartition` works with `adbc_db2` (1.7+) on range-partitioned tables |
-| Embedded drivers | The Installation page's list has no Db2; the Connection Parameters page says `adbc_db2` uses the embedded ArpeDb2 driver, no IBM client | No client to install for `adbc_db2`; `odbc` needs IBM's driver |
 | Line continuation | A few Linux snippets mix `` ` `` and `\` | bash: `\`; PowerShell: `` ` `` |
 | `Physical` + `--query` on `backup_mssql` | The Physical method says a `--query` may add a simple `WHERE`; the `backup_mssql` pages limit it to `SELECT … FROM [schema.]table` with no filter | No filter with `backup_mssql` |
 | `backup_mssql` example on the Connection Parameters page | `./FastBCP` with a Windows path (`D:\Backups\MSSQL`) | Match the executable and path style to the OS |
