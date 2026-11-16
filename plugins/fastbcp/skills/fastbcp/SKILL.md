@@ -1,6 +1,6 @@
 ---
 name: fastbcp
-description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak, full and differential, encrypted or TDE ones included) and Oracle RMAN backup sets (full and incremental) without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
+description: Build, fix, explain or run FastBCP command lines. FastBCP (by arpe.io) is a high-performance bulk export tool that reads from SQL Server, PostgreSQL, Oracle, MySQL, SAP HANA, Teradata, Netezza, IBM Db2, ClickHouse, ODBC/OLE DB sources (including arpe.io ADBC drivers) or straight from SQL Server backup files (.bak, full and differential, encrypted or TDE ones included) and Oracle RMAN backup sets (full and incremental) without restoring them, and writes CSV, TSV, Parquet, JSON, BSON, Excel or gzip files to local disk, UNC shares or cloud storage (S3, Azure Blob, ADLS Gen2, GCS, OneLake). Use when the user mentions FastBCP, or wants to bulk export / extract / unload a database table or query to files or to object storage, choose a parallel export method, or troubleshoot a FastBCP run.
 ---
 
 # FastBCP
@@ -11,7 +11,7 @@ query) → one output file, or one file per parallel chunk / partition.
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastBCP **1.6.8**. Detailed references (load only what you need):
+Facts below reflect FastBCP **1.7.0**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -31,14 +31,18 @@ https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one fi
 When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
-- **1.6** → use this skill as is. RMAN incremental backups (level 1 to 4), paths and `**` in the `backup_rman`
-  `--database`, and `FASTBCP_BACKUP_RESTORE_*` with `backup_rman` need **1.6.8**; before, a level 1 is refused and
-  only the full or level 0 backup can be read, from the `--server` directory only. Differential backups and
-  `FASTBCP_BACKUP_RESTORE_*` with `backup_mssql` need **1.6.7**; before,
-  a file is read at its last full backup and differentials are ignored, without an error: restore them and use
-  `mssql` / `adbc_mssql`. Encrypted and TDE backups and `FASTBCP_INDEX_DIR` need **1.6.6**; before,
-  such a backup is refused: restore it and use `mssql` / `adbc_mssql`. Before 1.6.5, `backup_mssql` writes
-  some column types differently from `adbc_mssql` (see the version notes in troubleshooting.md).
+- **1.7** → use this skill as is.
+- **1.6** → no `adbc_db2` (Db2 goes through `odbc` and IBM's driver); write values in their documented case; a
+  wrong value in a YAML `--config` is silently ignored. Recommend **1.7.0** for an Oracle `--query` holding `#` or
+  `\` (silently altered), IBM's Db2 ODBC driver on a Windows with a decimal comma (`DECIMAL` × 10^scale), or a
+  `backup_mssql` failure on a PAGE-compressed table or typed `xml` (troubleshooting.md). RMAN incremental backups,
+  paths and `**` in the `backup_rman` `--database`, and `FASTBCP_BACKUP_RESTORE_*` with `backup_rman` need
+  **1.6.8**; before, a level 1 is refused and only the full or level 0 backup is read, from `--server` only.
+  Differential backups and `FASTBCP_BACKUP_RESTORE_*` with `backup_mssql` need **1.6.7**; before, a file is read
+  at its last full backup and differentials are ignored, without an error: restore them and use `mssql` /
+  `adbc_mssql`. Encrypted and TDE backups and `FASTBCP_INDEX_DIR` need **1.6.6**; before, such a backup is
+  refused: restore it and use `mssql` / `adbc_mssql`. Before 1.6.5, `backup_mssql` writes some column types
+  differently from `adbc_mssql` (see the version notes in troubleshooting.md).
 - **1.5** → With `backup_mssql`, recommend **1.5.1**: 1.5.0 fails on some
   backups (`catalog page (x:y) not in the backup`) and on some columnstore tables
   (`data id … outside the dictionaries`). `backup_rman` (Oracle RMAN backups) needs **1.6.0**; before,
@@ -58,8 +62,9 @@ building a command; otherwise ask for the version when it matters (a rejected fl
 ## Workflow
 
 1. **Source** – engine → `--connectiontype`; server, database, auth (`--trusted`, `--user`/`--password`,
-   or `--sourceconnectstring`). See connections.md. A SQL Server `.bak` file (1.5+): `backup_mssql`,
-   `--server` = backup directory, `--database` = backup file, pattern or `;` list, no credentials; a full backup
+   or `--sourceconnectstring`). See connections.md. IBM Db2 to Parquet (1.7+): `adbc_db2`,
+   `--server "host[:port]"` (port 50000 by default), `--database` required, `--user` / `--password`.
+   A SQL Server `.bak` file (1.5+): `backup_mssql`, `--server` = backup directory, `--database` = backup file, pattern or `;` list, no credentials; a full backup
    and its differential (1.6.7+): name both, or a pattern matching them; for an encrypted or TDE backup
    (1.6.6+), `--sourceuser` = file of the certificate's private key, `--sourcepassword` = its password, if any.
    Oracle RMAN backup pieces
@@ -91,11 +96,11 @@ Size the table in **cells** (rows × columns, from catalog statistics); count wi
 | Under ~20M cells | `None` (default). Splitting usually costs more than it saves | – |
 | Integer key leading a selective clustered index (identity…), no big gaps | `RangeId` (min/max ranges) | key column |
 | Indexed integer, date or string key, gaps or skew | `Ntile` (even row counts; key need not be unique) | key column |
-| Natively partitioned table, partitions of similar size (SQL Server, PostgreSQL, Oracle, MySQL, Teradata and their `adbc_*`) | `DBPartition` | – |
+| Natively partitioned table, partitions of similar size (SQL Server, PostgreSQL, Oracle, MySQL, Teradata and their `adbc_*`; Db2 for LUW range partitioning with `adbc_db2`, 1.7+) | `DBPartition` | – |
 | No usable key, SQL Server / PostgreSQL / Oracle / Netezza (1.4+) | `Physical` | – |
 | Date column, want `year=…/month=…` folders | `Timepartition` | `"(col, year, month)"` |
 | One file per business value, an expression like `YEAR(col)`, or incremental extracts | `DataDriven` (+ optional `--datadrivenquery`) | column or expression |
-| Engine without `Physical` (Teradata, MySQL, HANA, ClickHouse, ODBC/OLE DB) and no good key | `DataDriven` on a business column | column |
+| Engine without `Physical` (Teradata, MySQL, HANA, ClickHouse, Db2, ODBC/OLE DB) and no good key | `DataDriven` on a business column | column |
 | SQL Server backup file (`backup_mssql`, 1.5+) or Oracle RMAN backup (`backup_rman`, 1.6.0+), any size worth splitting | `Physical` (resolves to `Pages`); only `None` and `Physical` are allowed | – |
 
 Don't recommend `Random` unless asked (kept for compatibility and benchmarks; often the slowest). `Ctid`, `Rowid`,
@@ -110,18 +115,19 @@ capped at core count; `-N` = cores/N) and decide on `--merge` (see parallelism.m
 
 - **Use long flags only.** Short flags are inconsistent across doc pages (e.g. `-d` is the CSV
   delimiter, not the database; database is `-I`). Long flags are unambiguous.
-- **ADBC connectors** (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`, `backup_mssql`, `backup_rman`) write **Parquet only**
+- **ADBC connectors** (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`, `adbc_db2`, `backup_mssql`, `backup_rman`) write **Parquet only**
   and run on Windows/Linux **x64 only**. If the user wants CSV with ADBC, explain and propose the
   non-ADBC connector.
 - **Merge** (`--merge true`) works for CSV and Parquet only and **not for cloud destinations**.
   Its default is `false` since 0.32. For cloud targets, omit it or set `--merge false`.
 - `--fileinput` SQL files must contain one query **without a trailing `;`**.
 - `DBPartition` needs `--sourceschema` + `--sourcetable`, no key column; it falls back to `None`
-  with a warning when the table is not partitioned.
+  with a warning when the table is not partitioned (Db2: not range partitioned, or Db2 for i).
 - `Physical` (and the deprecated `Physloc`, `Rowid`, `Ctid`) needs `--sourceschema` + `--sourcetable`
   and no key column; a `--query` may only add a simple `WHERE`. It fails on `odbc`, `oledb`, `mysql`,
-  `clickhouse`, `hana`, `teradata` and `adbc_teradata`.
-- `adbc_teradata` refuses `--trusted`: use `--user`/`--password` (or a connection string).
+  `clickhouse`, `hana`, `teradata`, `adbc_teradata` and `adbc_db2`.
+- `adbc_teradata` and `adbc_db2` refuse `--trusted`: use `--user`/`--password` (or a connection string).
+  `adbc_db2` targets Db2 for LUW; Db2 for i works for queries; Db2 for z/OS is not supported (use `odbc`).
 - `backup_mssql`: no database credentials; a striped backup needs every stripe (pattern or `;` list);
   `--query` only as `SELECT * | columns FROM [schema.]table`, no `WHERE`. A TDE or encrypted backup needs
   the private key of the certificate (1.6.6+): never guess the key file or its password, ask.

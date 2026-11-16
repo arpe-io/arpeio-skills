@@ -382,7 +382,74 @@ export FASTBCP_TTU_PATH=/opt/teradata/client/20.00   # only needed for the legac
   --paralleldegree 8
 ```
 
+## Db2 via ADBC → Parquet, Ntile, no IBM client (1.7+)
+
+Linux:
+
+```bash
+./FastBCP \
+  --connectiontype adbc_db2 \
+  --server "db2server.company.corp:50000" \
+  --database "SAMPLE" \
+  --user "$FASTBCP_USER" \
+  --password "$FASTBCP_PASSWORD" \
+  --sourceschema "DB2ADMIN" \
+  --sourcetable "ORDERS" \
+  --directory "/data/export" \
+  --fileoutput "orders.parquet" \
+  --parallelmethod Ntile \
+  --distributekeycolumn "ORDER_ID" \
+  --paralleldegree 8
+```
+
+Windows (PowerShell):
+
+```powershell
+.\FastBCP.exe `
+  --connectiontype adbc_db2 `
+  --server "db2server.company.corp:50000" `
+  --database "SAMPLE" `
+  --user $env:FASTBCP_USER `
+  --password $env:FASTBCP_PASSWORD `
+  --sourceschema "DB2ADMIN" `
+  --sourcetable "ORDERS" `
+  --directory "C:\temp" `
+  --fileoutput "orders.parquet" `
+  --parallelmethod Ntile `
+  --distributekeycolumn "ORDER_ID" `
+  --paralleldegree 8
+```
+
+`--database` is required; the port defaults to `50000`. No `--trusted`. Parquet only: for CSV, use `odbc` (below).
+TLS: a `--sourceconnectstring` on the SSL port instead of `--server` / `--database` / `--user` / `--password`
+(see connections.md). A Db2 `--query` can use `CURRENT DATE - 30 DAYS` (1.7+).
+
+## Db2 range-partitioned table → Parquet, one export per data partition (Linux, 1.7+)
+
+```bash
+./FastBCP \
+  --connectiontype adbc_db2 \
+  --server "db2server.company.corp:50000" \
+  --database "SAMPLE" \
+  --user "$FASTBCP_USER" \
+  --password "$FASTBCP_PASSWORD" \
+  --sourceschema "DB2ADMIN" \
+  --sourcetable "SALES_HISTORY" \
+  --directory "/data/export/sales_history" \
+  --fileoutput "sales_history.parquet" \
+  --parallelmethod DBPartition \
+  --paralleldegree 4
+```
+
+Each thread reads one data partition (Db2 for LUW). A table that is not range partitioned, or Db2 for i, falls back
+to `None` with a warning. PowerShell: same arguments, `.\FastBCP.exe` and `` ` `` continuations,
+`$env:FASTBCP_USER` / `$env:FASTBCP_PASSWORD`.
+
 ## DB2 via ODBC → CSV, Ntile (PowerShell)
+
+For Parquet, prefer `adbc_db2` (1.7+, above). Keep `odbc` and IBM's driver for other formats or Db2 for z/OS. With
+IBM's driver on a Windows with a decimal comma, `DECIMAL` values came out multiplied by 10^scale up to 1.6: fixed
+in 1.7 (FastBCP adds `Patch2=15`).
 
 ```powershell
 .\FastBCP.exe `
