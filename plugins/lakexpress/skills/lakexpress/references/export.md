@@ -102,7 +102,11 @@ Priority: `partition_columns` > `--fastbcp_table_config` > automatic.
 
 ```text
 <base>/[<sub_path>/]<schema>/<table>/part-00000.parquet
+<base>/[<sub_path>/]baseline_to_<d_new>/<schema>/<table>/…              incremental table, first run
+<base>/[<sub_path>/]incremental_from_<d_old>_to_<d_new>/<schema>/<table>/…   incremental table, later runs
 ```
+
+Each run of an incremental table writes to its own folder, placed before `<schema>/<table>/`.
 
 `<base>` is `--output_dir` (local, saved as an absolute path since 0.4.9) or the storage entry's
 `directory`. `--sub_path staging/daily/2025-01-15` adds folders (date partitioning, environments,

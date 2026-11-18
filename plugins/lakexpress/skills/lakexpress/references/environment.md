@@ -90,7 +90,7 @@ WHERE j.run_id = '<RUN_ID>' AND j.job_status = 'failed';
 - The run id is printed at start (`Created export run: <run_id>`); the end shows `RUN SUMMARY` (or
   `RESUME SUMMARY`) `Export: n/m tables succeeded`, the failed tables and their errors.
 
-## Exit codes (0.6.5)
+## Exit codes (0.6.8)
 
 Before 0.6.0 the binary always exited 0: check the log with older versions. Codes 41 and 44–47 are
 returned since 0.6.2 (before: 40, 0, 10 or 1 in those situations).
@@ -108,18 +108,20 @@ returned since 0.6.2 (before: 40, 0, 10 or 1 in those situations).
 | 30 | FastBCP not configured, or no executable in the configured folder (10 before 0.5.0) |
 | 31 | `lxdb init` / `drop` / `truncate` failed |
 | 34 | FastBCP older than 1.4.0 |
-| 40 | Some tables failed to export, others succeeded: fix, then `sync --resume` |
+| 40 | Some tables failed to export, others succeeded: fix, then `sync --resume`. An incremental table whose `MAX(column)` query failed counts as a failed table (0.6.8+) |
 | 41 | Every table failed to export; `sync` does not publish |
+| 43 | The export job of at least one table could not be created, and the jobs that were created succeeded (40 / 41 take precedence when an export also failed). The run is recorded as `failed` and `sync` does not publish (0.6.8+; exit 0 before) |
 | 44 | No table matched the source schemas and patterns (the run is recorded as `failed`) |
 | 45 | `--resume` found no run to resume (or the `--run_id` does not exist); `'sync[publish]'` found no completed export run |
 | 46 | Export succeeded but publishing had failures (`sync`), or publishing failed (`'sync[publish]'`) |
 | 47 | Some tables failed to export and publishing had failures |
 | 50 | Interrupted with Ctrl+C |
 
-Codes 20, 22, 32, 33, 42 and 43 are reserved and not returned yet
+Codes 20, 22, 32, 33 and 42 are reserved and not returned yet
 (https://lakexpress-docs.arpe.io/latest/reference/exit-codes). Schedulers: 10–39 need a fix of the
-configuration or the environment; 40 and 47 can be retried with `--resume`; after 46, publish again
-with `'sync[publish]'`.
+configuration or the environment; 40 and 47 can be retried with `--resume`; after 43, fix the cause and run
+`sync` again; after 46, publish again with `'sync[publish]'` (with incremental tables, the next `sync`
+also exports again the tables that were not published: incremental.md).
 
 ## Scheduling
 

@@ -1,4 +1,4 @@
-# LakeXpress – Examples (0.6.5)
+# LakeXpress – Examples (0.6.8)
 
 Entry names (`lxdb_postgres`, `source_postgres`, `source_mssql`, `source_oracle`, `s3_01`, `gcs_01`,
 `azure_01`, `onelake_01`, `snowflake_prod`, …) are keys of `credentials.json` (credentials.md). Linux
@@ -257,11 +257,14 @@ Dataset `lx_tpch_1`. Without `--publish_method internal` and a pattern: external
 ./LakeXpress sync --auth_file credentials.json --lxdb_auth_id lxdb_postgres --sync_id sales-incremental
 ```
 
-`sales.orders` must have a primary key. Other tables of `sales` are fully exported each run.
+`sales.orders` must have a primary key. `sales.order_items` (`append`): the first run replaces the
+table, each later run adds its rows. Other tables of `sales` are fully exported each run. Use
+LakeXpress 0.6.8 or later for incremental tables published to Snowflake (troubleshooting.md).
 
 ## Export now, publish later; resume; clean up
 
 ```bash
+# incremental tables: each export starts from the last published point (0.6.8+)
 ./LakeXpress 'sync[export]' --auth_file credentials.json --lxdb_auth_id lxdb_postgres --sync_id <SYNC_ID>
 ./LakeXpress 'sync[publish]' --auth_file credentials.json --lxdb_auth_id lxdb_postgres --sync_id <SYNC_ID>
 

@@ -30,6 +30,7 @@ Publishing is optional and runs after the export, from the Parquet files in stor
   `"{subpath}"`) with `--publish_table_pattern "{schema}_{table}"`.
 - A wrong pattern stops `sync` before the export (exit 10).
 - Existing tables are replaced on each publish (Glue always recreates; DuckLake drops and recreates).
+  Tables of incremental runs are kept across runs (incremental.md).
 
 ## Snowflake
 
@@ -40,15 +41,31 @@ Publishing is optional and runs after the export, from the Parquet files in stor
   forms count as LakeXpress's `gs://` and `abfss://`.
 - Grants (docs): `CREATE SCHEMA ON DATABASE`, `USAGE ON WAREHOUSE`, `USAGE ON STAGE` for the role used.
 - External: tables expose a `VALUE` column; LakeXpress also creates views `V_<table>` with typed columns
-  (prefix fixed), unless `--no_views`. Refresh external tables after new files:
-  `ALTER EXTERNAL TABLE EXT_TPCH_1.CUSTOMER REFRESH;`.
+  (prefix fixed), unless `--no_views`. For a table exported in full, refresh it after new files:
+  `ALTER EXTERNAL TABLE EXT_TPCH_1.CUSTOMER REFRESH;` (never an incremental `append` table: see below).
 - Internal: `--pk_constraints` adds the source primary keys.
+- Sessions are opened with `TIMEZONE = 'UTC'` (0.6.6+), whatever the user or account setting, so
+  `ALTER USER … SET TIMEZONE = 'UTC'` is not needed: timestamps without a time zone keep the source
+  wall clock, `TIMESTAMP_TZ` values are stored with a `+00:00` offset, and `_lx_updated_at` is UTC.
+  Before 0.6.6, values loaded with `COPY INTO` were shifted by the session time zone (an Oracle `DATE`
+  `1992-01-01 00:00:00` loaded as `1991-12-31 16:00:00` with `America/Los_Angeles`). Tables loaded
+  before keep their shifted values until published again: a full publish recreates them, incremental
+  tables must be dropped first.
+- Incremental tables (0.6.8+; before 0.6.8 they were not published correctly, troubleshooting.md):
+  - `upsert` / `delete_insert` tables are internal tables in schema `<schema>` (not `EXT_<schema>`),
+    whatever `--publish_method`, and get no `V_` view.
+  - `append` with `external`: the external table is located above the run folders, and each publish
+    registers the files of its run. Do not `REFRESH` such a table yourself: a full refresh would also
+    register runs that were exported but not published.
+  - An external `append` table created before 0.6.8 points at a single run folder and cannot take
+    another run: the publish of that table stops with an error that says so. Drop the table; the next
+    baseline rebuilds it in full.
 - Auth modes: `password`, `pat` (recommended for automation), `keypair`, `oauth` (credentials.md).
 - Renamed flags: `--publish` → `--publish_target`; `--snowflake_table_type` → `--publish_method`;
   `--snowflake_pk_constraints` → `--pk_constraints`; `--snowflake_no_views` → `--no_views`;
   `--snowflake_view_prefix` removed.
 
-### Oracle → Snowflake (0.6.5)
+### Oracle → Snowflake (0.6.5+)
 
 Set `"use_adbc": true` on the Oracle source. FastBCP's native driver truncates `TIMESTAMP(n)` to
 milliseconds, writes `TIMESTAMP WITH TIME ZONE` as text, shifts `TIMESTAMP WITH LOCAL TIME ZONE` by

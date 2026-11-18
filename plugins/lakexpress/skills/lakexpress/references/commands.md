@@ -1,4 +1,4 @@
-# LakeXpress – Commands and flags (0.6.5)
+# LakeXpress – Commands and flags (0.6.8)
 
 ```text
 LakeXpress [--version] [--no_banner] COMMAND [SUBCOMMAND] [OPTIONS]
@@ -103,7 +103,10 @@ There is no command to modify a configuration: delete it and create it again.
   failed tables are exported again, completed ones are skipped. No run to resume, or a `--run_id` that
   does not exist: exit 45. A run of another sync, or a run already running: exit 10.
 - `--fastbcp_dir_path` on `sync` overrides the folder saved in the configuration (0.6.2+; ignored before).
-- `sync` publishes after an export that exited 0 or 40; when every table failed (41) it does not.
+- `sync` publishes after an export that exited 0 or 40; when every table failed (41), or a table's
+  export job could not be created (43), it does not.
+- Incremental tables with a publish target: the watermark moves when the table is published
+  (0.6.8+), so each `'sync[export]'` starts from the last published point (incremental.md).
 - Only one run of a configuration at a time: a run left `running` by a crash blocks the next ones
   (`… is already running … use 'cleanup'`, exit 10).
 
@@ -115,6 +118,9 @@ or `--run_id ID` (one run, jobs by status). One of the two is required (exit 10 
 ## cleanup
 
 Removes runs of a configuration stuck in `running` or `failed`; completed runs and files are kept.
+It also releases the watermark locks the run held on incremental tables (0.6.7+). Before 0.6.7 it
+failed with `RUN_DELETE_FAILED` on any run that had exported at least one file, and the run kept
+blocking the next ones.
 
 | Option | Description |
 |---|---|

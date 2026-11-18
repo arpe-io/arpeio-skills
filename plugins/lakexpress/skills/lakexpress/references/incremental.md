@@ -43,6 +43,7 @@ bound `d_new`, read from the source at the start of the run:
 | Any type, no safety lag | `MAX(column)` |
 | `date`, `datetime` with `--incremental_safety_lag` | `min(MAX(column), now − lag)` |
 | Empty table, `date` / `datetime` | `now − lag` |
+| Empty table, `int` / `bigint` / `auto` | none: the table is skipped for the run (watermark unchanged) and exported once it has rows. The run is not failed by it (exit 0 if the rest succeeds) and the other tables are exported and published; the target table is created by the first run that has rows |
 
 - `now` is the **source's** clock (`CURRENT_TIMESTAMP`), since the column holds its values; UTC with a
   warning if it cannot be read.
@@ -54,11 +55,40 @@ bound `d_new`, read from the source at the start of the run:
   next run. For `int` / `bigint` columns, choose one that only grows as rows are written.
 - The upper bound never goes below the stored watermark (e.g. after raising the lag): the table then
   exports no rows and its watermark stays.
-- The watermark is updated only for tables that exported successfully.
+- A `MAX(column)` query that fails (unknown column, missing privilege) is an error of that table,
+  counted as a failed table (exit 40 or 41); it is not treated as an empty table.
+- One table whose export job cannot be created does not drop the others; the run then exits 43.
 - SQL Server behind an Always On listener: `MAX(column)` and the export use the same
   `application_intent`. With `"ReadOnly"` and several secondaries, add a lag larger than the replica
   lag, or point `server` at one secondary.
 - Before 0.6.2 the lag was applied to empty tables only.
+- Before 0.6.8 an empty table with an `int` / `bigint` / `auto` column stopped job creation
+  (`d_new must be set before getting folder name`): the tables after it in the same schema were not
+  exported and the run still exited 0.
+
+## When the watermark moves
+
+| Configuration | The watermark of a table moves… |
+|---|---|
+| No publish target | when the table is exported |
+| With a publish target | when the table is **published** |
+
+- With a publish target, a run that was exported but not delivered (publish error, publish skipped
+  after an export error, interrupted run) leaves the watermark where it was: the next run reads the
+  same rows again from the source. Nothing is lost and no reset is needed.
+- After a failed publish, only the tables that were not published are read again on Snowflake. On the
+  other targets, when some tables fail, every incremental table of the run is read again: with
+  `append`, rows of the tables that were published can then be loaded twice (`upsert` and
+  `delete_insert` are not affected).
+- `'sync[export]'` then `'sync[publish]'`: each `'sync[export]'` starts from the last **published**
+  point, so two exports without a publish in between write folders that overlap
+  (`incremental_from_<d_old>_to_<d_new>` with the same `<d_old>` and a larger `<d_new>`). Publish the
+  latest completed run, which `'sync[publish]'` does by default: it holds every row since the last
+  publish. The folders of the runs that were not published stay in storage and are not used.
+- A watermark that does not advance: no new rows (`SELECT MAX(column)`), or the table was not
+  published (check the publish step and its failed tables).
+- Before 0.6.8 the watermark moved at export: the rows of a run that was never published (publish
+  error, two exports before one publish, crash) were lost until a new baseline.
 
 ## Loading strategies (what the publish step does with the new rows)
 
@@ -67,6 +97,14 @@ bound `d_new`, read from the source at the start of the run:
 | `append` | inserts the new rows | not needed |
 | `upsert` | `MERGE`: updates matching rows, inserts the others (MotherDuck, DuckLake: delete by key + insert) | required |
 | `delete_insert` | deletes target rows whose key is in the batch, inserts the batch | required |
+
+- `append`: the baseline run replaces the target table; each later run adds its rows to it. On
+  Snowflake (0.6.8+) this holds for both publish methods: `internal` loads the run into the existing
+  table, `external` registers the files of each published run in the external table. Publishing the
+  same run twice adds nothing. Before 0.6.8 a Snowflake `append` table held only the last run.
+- `upsert` / `delete_insert`: the key is the primary key found on the source table at schema
+  discovery. Before 0.6.8 the publish stopped with exit 46 (`requires primary key columns`) even when
+  the table had one.
 
 Support: `upsert` / `delete_insert` on Snowflake, Redshift, MotherDuck, DuckLake (as persistent internal
 tables whatever `--publish_method`), Databricks and BigQuery (with `--publish_method internal`), Fabric

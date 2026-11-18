@@ -12,7 +12,7 @@ where, where to publish) in the **LakeXpress DB**, then `sync` runs it, as often
 Goal: produce a **credentials file** (if needed) and **correct, copy-pasteable commands** for the
 user's OS and shell. Never invent hosts, credentials, schema, bucket or account names: ask.
 
-Facts below reflect LakeXpress **0.6.5** (docs checked against the v0.6.5 code). References (load only
+Facts below reflect LakeXpress **0.6.8** (docs checked against the v0.6.8 code). References (load only
 what you need):
 
 | Need | File |
@@ -46,8 +46,16 @@ When you can run commands, run `./LakeXpress --version` (Windows: `.\LakeXpress.
 prints e.g. `LakeXpress 0.6.4 (build 2026-11-11T08:27:18Z)`. Otherwise ask for the version when it
 matters (a rejected option, an unexpected exit code).
 
-- **0.6.5** → use this skill as is.
-- **0.6.0 to 0.6.4** → before 0.6.5 there is no `--unbounded_number_type` and Oracle columns get other
+- **0.6.8** → use this skill as is.
+- **0.6.5 to 0.6.7** → incremental syncs differ before 0.6.8: the watermark moves at export, so rows
+  of a run that is not published are lost; `upsert` / `delete_insert` stop at publish (exit 46) even
+  when the table has a primary key; a Snowflake `append` table keeps only the last run; an empty table
+  with an `int` / `bigint` / `auto` watermark breaks the run; exit code 43 is not returned
+  (troubleshooting.md). Before 0.6.7
+  `cleanup` fails on a run that exported files; before 0.6.6 Snowflake loads shift timestamps by the
+  session time zone and Windows exports fail with `[WinError 2]` unless started from `engine\`.
+  Suggest upgrading.
+- **0.6.0 to 0.6.4** → also: before 0.6.5 there is no `--unbounded_number_type` and Oracle columns get other
   Snowflake types; before 0.6.3 every source is extracted with FastBCP's native driver unless
   `"use_adbc": true`; before 0.6.2 the exit codes 41 and 44–47 are not returned, and several bugs
   listed in troubleshooting.md are not fixed. Suggest upgrading.
@@ -77,7 +85,7 @@ matters (a rejected option, an unexpected exit code).
    the `sync` command with `<SYNC_ID>` (or the `--sync_id` chosen), then a short summary with
    assumptions and what to check (exit code, `status`).
 
-## Hard rules (0.6.5)
+## Hard rules (0.6.8)
 
 - **A license file is required**, also for the free trial (it is a 30-day license file emailed by
   https://arpe.io/get-trial?product=LakeXpress). Without one every command except `--help` / `--version`
@@ -105,7 +113,8 @@ matters (a rejected option, an unexpected exit code).
 - **Incremental**: types `date`, `datetime`, `int`, `bigint`, `auto` only (not `timestamp`). An invalid
   spec still creates the configuration (without it): check the exit code, then `config delete` and
   recreate. `upsert` / `delete_insert` need a source primary key and are not supported on Glue or
-  Fabric Lakehouse.
+  Fabric Lakehouse. With a publish target, a table's watermark moves when the table is **published**,
+  not when it is exported: rows that were not delivered are exported again (incremental.md).
 - **SQLite / DuckDB LakeXpress DB**: absolute `filepath`, one machine, one sync at a time.
 - **`--error_action fail`** (default) stops at the first failed table; `continue` exports the others.
 - Use **long flags** in generated commands (`--auth_file`, `--include`, `--exclude`, `--fastbcp_p`), not
@@ -148,7 +157,8 @@ PostgreSQL schema `sales` to S3, published as Snowflake internal tables, 4 table
 ## After a run
 
 - **Exit code**: `0` success, `40` some tables failed to export (resume), `41` every table failed
-  (nothing published), `44` no table matched, `45` no run to resume or to publish, `46` export fine
+  (nothing published), `43` the export job of a table could not be created (nothing published),
+  `44` no table matched, `45` no run to resume or to publish, `46` export fine
   but publishing failed, `47` both had failures, `10` configuration error, `12` connection error,
   `13` license, `30` / `34` FastBCP not found / older than 1.4.0 (environment.md).
 - `status --sync_id <SYNC_ID>` (add `--verbose` for every run); the log `lx_YYYYMMDD_HHMMSS_<run_id>.log`
