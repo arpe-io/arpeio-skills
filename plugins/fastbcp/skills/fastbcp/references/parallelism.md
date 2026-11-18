@@ -27,12 +27,18 @@ A `--query` can be added to filter rows.
 | `Ntile` | sortable; not necessarily unique | any | Evenly sized buckets (NTILE) on the key |
 | `Timepartition` | `"(datecol, year)"`, `"(datecol, year, month)"`, `"(datecol, year, month, day)"`, `"(datecol, year, week)"` | any | One chunk per time period, biggest periods first (1.4+); writes `year=/month=/day=` style output. Rows with a `NULL` date go to a `<col>=NULL` directory (1.4+) |
 | `Physical` (1.4+) | – | see below | Physical row location of the source engine; strategy picked from the connection type. The only parallel method for `backup_mssql` (1.5+) |
-| `DBPartition` (1.3+) | – | `mssql`, `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `oraodp`, `adbc_oracle`, `mysql`, `teradata`, `adbc_teradata` | One extraction per native partition/subpartition (Teradata: PPI), largest first. Falls back to `None` with a warning when the table is not partitioned, has one partition, or the source is unsupported |
+| `DBPartition` (1.3+) | – | `mssql`, `adbc_mssql`, `pgsql`, `pgcopy`, `adbc_pgsql`, `oraodp`, `adbc_oracle`, `mysql`, `teradata`, `adbc_teradata`, `adbc_db2` (1.7+, Db2 for LUW) | One extraction per native partition/subpartition (Teradata: PPI; Db2: one range predicate per visible data partition), largest first. Falls back to `None` with a warning when the table is not partitioned, has one partition, or the source is unsupported |
 | `Ctid`, `Physloc`, `Rowid`, `NZDataSlice` | – | – | **Deprecated in 1.4** (warning in the log, removed in 2.0). Use `Physical` |
 
 `adbc_netezza` supports `None`, `Physical` (NZDataSlice), `Ntile`, `Random`, `RangeId` and `DataDriven`.
 `adbc_teradata` supports the same methods as `teradata`: `Random`, `Ntile`, `DataDriven`, `RangeId`,
 `Timepartition`, `DBPartition`.
+`adbc_db2` (1.7+) supports `None`, `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition` and `DBPartition`, not
+`Physical`. `DBPartition` there gives each thread one data partition of a Db2 for LUW range-partitioned table, and
+Db2 reads only that partition (no scan of the whole table per thread, no key column). Partitions not yet visible to
+queries (attached and not yet validated, being detached) are skipped. A table that is not range partitioned, and
+Db2 for i, fall back to `None` with a warning. The layout follows `FASTBCP_DBPARTITION_TARGET_MODE`, as for the
+other sources.
 
 ### Physical (1.4+)
 
@@ -48,7 +54,7 @@ A `--query` can be added to filter rows.
 - Needs `--sourceschema` and `--sourcetable`; a `--query` may add a simple `WHERE` filter.
   `--distributekeycolumn` is not used.
 - Any other connection type stops with an error: `mysql`, `clickhouse`, `hana`, `teradata`,
-  `adbc_teradata`, and `odbc`/`oledb` (FastBCP can't tell the engine behind them: use a native type).
+  `adbc_teradata`, `adbc_db2`, and `odbc`/`oledb` (FastBCP can't tell the engine behind them: use a native type).
 - The log shows the resolved strategy, e.g. `Distribute Method : Physical (Ctid)`.
 - `backup_mssql` and `backup_rman` accept only `None` and `Physical`: there is no SQL engine behind a backup file to
   compute ranges, partitions or keys. Any other method stops with
@@ -69,7 +75,7 @@ From the arpe.io guide "Choosing the right FastBCP parallel method" (1.4). Size 
 tables with wide values (`NVARCHAR(MAX)`, `XML`, `VARBINARY`, LOBs) as one size class larger.
 
 1. **Connection type first**: for Parquet, prefer an `adbc_*` type where one exists (`adbc_mssql`,
-   `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`).
+   `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata`, `adbc_db2` 1.7+).
 2. **Hive layout required?** Then the layout decides: `DBPartition` with
    `FASTBCP_DBPARTITION_TARGET_MODE=HIVE` mirrors the native partitions; `Timepartition` writes
    `year=…/month=…` folders.
