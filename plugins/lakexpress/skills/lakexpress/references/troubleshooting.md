@@ -35,7 +35,8 @@
 | Snowflake publishing stops before creating any table, with an error naming the stage URL and the storage `directory` (0.6.2+) | Make them the same folder (`DESC STAGE …`); a `directory` that is a parent of the stage URL is not accepted. `gcs://` / `azure://` on the Snowflake side match `gs://` / `abfss://` |
 | `--generate_metadata` with OneLake storage can write wrong paths in the CDM files | Check them, or omit the flag |
 | DuckLake publishes tables one at a time, whatever `--n_jobs` | Expected |
-| Incremental (query) export of a large table with `--fastbcp_p` > 1: a physical method (`Ctid`, `Rowid`, `Physloc`) is replaced by `None` with a warning (0.5.0+; before, the export failed) | For parallel incremental exports use a key-based method (`Ntile`, `RangeId`) in `--fastbcp_table_config` |
+| Incremental (query) export of a large table with `--fastbcp_p` > 1, 0.5.0 to 0.6.8: a physical method (`Ctid`, `Rowid`, `Physloc`) is replaced by `None` with a warning, so the table is read by a single thread on every run, the baseline included (before 0.5.0 the export failed) | Use a key-based method (`Ntile`, `RangeId`) in `--fastbcp_table_config`. Versions after 0.6.8 keep the physical method (they pass `--sourceschema` / `--sourcetable` with `--query`); on Oracle the incremental table then needs `SELECT_CATALOG_ROLE` like a full export |
+| Oracle, large table: `Error in retrieving RowID Chunks. The user must have SELECT_CATALOG_ROLE` with `ORA-00942` on `SYS.DBA_EXTENTS`; the table fails (exit 40 / 41) | The `Rowid` method reads the table's extents from `DBA_EXTENTS`, `DBA_SEGMENTS` and `DBA_OBJECTS` to build its `ROWID` ranges. `GRANT SELECT_CATALOG_ROLE TO <user>` (or `SELECT` on these three views), or avoid `Rowid`: `--fastbcp_table_config "SCHEMA.TABLE:None::1"`, a key-based method, or `--fastbcp_p 1` |
 
 ## Doc errors (found in the 0.4 docs against the 0.4.10 code)
 

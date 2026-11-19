@@ -44,7 +44,7 @@ the source: total processes ≈ `n_jobs × fastbcp_p`.
 |---|---|---|
 | `None` | all | – (sequential) |
 | `Ctid` | PostgreSQL | – |
-| `Rowid` | Oracle (needs `SELECT_CATALOG_ROLE`) | – |
+| `Rowid` | Oracle (needs `SELECT_CATALOG_ROLE`: FastBCP reads `DBA_EXTENTS`, `DBA_SEGMENTS` and `DBA_OBJECTS` to build the `ROWID` ranges; `SELECT` on these three views is enough) | – |
 | `Physloc` | SQL Server | – |
 | `Random` | any | integer / bigint column |
 | `DataDriven` | any | column or expression with few distinct values (`YEAR(l_shipdate)`, `TO_CHAR(l_shipdate, 'YYYY')`) |
