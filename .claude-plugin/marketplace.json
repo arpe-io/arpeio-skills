@@ -29,7 +29,7 @@
     {
       "name": "fasttransfer",
       "source": "./plugins/fasttransfer",
-      "description": "Build, explain and troubleshoot FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza and DuckDB, and CSV/Parquet/JSON file imports.",
+      "description": "Build, explain and troubleshoot FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2 and DuckDB, natively or through the bundled arpe.io ADBC drivers, and CSV/Parquet/JSON file imports.",
       "category": "data",
       "keywords": [
         "fasttransfer",

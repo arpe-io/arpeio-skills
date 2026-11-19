@@ -18,19 +18,49 @@ for large volumes (the docs say more than about 1M cells).
 | Method | Source types | Needs | How it splits |
 |---|---|---|---|
 | `None` | any | – | Single stream |
-| `Ctid` | `pgsql`, `pgcopy` | `--sourceschema`, `--sourcetable` | PostgreSQL CTID ranges. Recommended for PostgreSQL |
-| `Physloc` | `mssql` (or `odbc` to SQL Server) | – | Physical page location. **Only on read-only tables, databases or snapshots**, because it relies on physical page locations that may change during writes |
-| `Rowid` | `oraodp` | `--sourceschema`, `--sourcetable` | Oracle ROWID slices |
-| `NZDataSlice` | `nzsql` | `--sourceschema`, `--sourcetable` | Netezza data slices. Alternative: `DataDriven` on `DATASLICEID` |
-| `Ntile` | any | key | Even buckets with NTILE; the key can be numeric, date, datetime or string |
+| `Physical` (1.0+) | PostgreSQL, Oracle, SQL Server, Netezza (table below) | `--sourceschema`, `--sourcetable` (not on Netezza) | Physical row location of the source engine; the strategy is picked from the connection type |
+| `Ntile` | any | key | Even buckets with NTILE; the key can be numeric, date, datetime or string. Rows whose key is NULL go to a chunk of their own |
 | `RangeId` | any | numeric key | Ranges between MIN and MAX; best on an identity / sequence without gaps |
-| `DataDriven` | any | key | One chunk per distinct value of the key, or per row of `--datadrivenquery`. More values than threads are queued |
+| `DataDriven` | any | key | One chunk per distinct value of the key (NULL is one of them), or per row of `--datadrivenquery`. More values than threads are queued |
 | `Random` | any | numeric key | Modulo on the key |
-| `DBPartition` (0.18+) | `mssql`, `msoledbsql`, `pgsql`, `pgcopy`, `oraodp`, `mysql`, `teradata` | `--sourceschema`, `--sourcetable`; `--query` / `--fileinput` not allowed | One stream per native partition, biggest first (details below) |
+| `DBPartition` (0.18+) | `mssql`, `msoledbsql`, `pgsql`, `pgcopy`, `oraodp`, `mysql`, `teradata`; 1.0+: `adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_teradata`, `adbc_db2` | `--sourceschema`, `--sourcetable`; `--query` / `--fileinput` not allowed | One stream per native partition, biggest first (details below) |
 | `Timepartition` (0.18+) | any | date tuple `"(col,year[,month[,day]])"` or `"(col,year,week)"` | One stream per year, month, day or ISO week of a date column, biggest first |
+| `Ctid`, `Rowid`, `Physloc`, `NZDataSlice` | see "Physical" below | see "Physical" below | **Deprecated in 1.0** (warning in the log, removed in 2.0). Use `Physical`; on 0.18 and older they are the only way to write it |
 
-`--sourceschema`/`--sourcetable` are required by `Ctid`, `Rowid` and `NZDataSlice` even when a `--query` is
-given. FastTransfer stops with an error otherwise.
+`RangeId` and `Random` never match a NULL key (a range or a modulo is not true for NULL): use them on a
+key without NULLs, or use `Ntile` / `DataDriven`.
+
+Every method works with the `adbc_*` types (1.0+), within the source lists above.
+
+## Physical (1.0+)
+
+One value for the physical-location split. FastTransfer resolves it from `--sourceconnectiontype`:
+
+| Source connection type | Resolved to | Notes |
+|---|---|---|
+| `pgsql`, `pgcopy`, `adbc_pgsql` | `Ctid` | CTID ranges. Recommended for PostgreSQL |
+| `oraodp`, `adbc_oracle` | `Rowid` | ROWID slices |
+| `mssql`, `msoledbsql`, `adbc_mssql` | `Physloc` | `%%physloc%%`, rowstore and clustered columnstore tables. **Only on read-only tables, databases or snapshots**: physical locations may change during writes |
+| `nzsql`, `nzbulk`, `nzoledb`, `adbc_netezza` | `NZDataSlice` | Netezza data slices |
+| anything else | refused | Error: `Physical method is not supported for source connection type …`; for `odbc` / `oledb`: `Physical method cannot identify the source engine behind connection type …` |
+
+- No `--distributekeycolumn`.
+- `--sourceschema` and `--sourcetable` are required for PostgreSQL, Oracle and SQL Server, even when a
+  `--query` is given (the query then filters that table). FastTransfer stops otherwise with
+  `Set a Source Schema and Source Table when using Physical (Ctid) method even if you define a query`.
+  Netezza needs neither.
+- The log shows the resolution: `Distribute Method : Physical resolved to Ctid for source type pgsql`.
+- No `Physical` for MySQL, Teradata, SAP HANA, ClickHouse, Db2, DuckDB, `odbc` and `oledb`: use
+  `DBPartition`, `Ntile`, `RangeId` or `DataDriven`.
+- The engine names still work in 1.0 and log `Parallel method Ctid is deprecated and will be removed in
+  2.0 ==> use --parallelmethod Physical`. Keep them in two cases only:
+  - **0.18 and older**, where `Physical` does not exist. There `Ctid`, `Rowid` and `NZDataSlice` require
+    `--sourceschema` + `--sourcetable`, `Physloc` requires nothing and is limited to `mssql` (or `odbc` to
+    SQL Server), and `NZDataSlice` to `nzsql`.
+  - **An `odbc` source to SQL Server** in 1.0: `Physical` refuses `odbc`, `Physloc` is still accepted
+    (with `--sourceschema` + `--sourcetable`).
+- Since 1.0 the SQL Server split uses a new key, which spreads the rows over all the streams (the former
+  key could leave a single active stream with an even degree) and handles clustered columnstore tables.
 
 ## DBPartition (0.18+)
 
@@ -40,13 +70,14 @@ has a single partition, or the source type is not supported.
 
 | Source | Partitions used | How a partition is read |
 |---|---|---|
-| `mssql`, `msoledbsql` | Partitions of the partition scheme | `WHERE $PARTITION.<function>(<column>) = n` |
-| `pgsql`, `pgcopy` | Leaf partitions (sub-partitions included) | The leaf table directly |
-| `oraodp` | Partitions and sub-partitions | `PARTITION (…)` / `SUBPARTITION (…)` |
+| `mssql`, `msoledbsql`, `adbc_mssql` | Partitions of the partition scheme | `WHERE $PARTITION.<function>(<column>) = n` |
+| `pgsql`, `pgcopy`, `adbc_pgsql` | Leaf partitions (sub-partitions included) | The leaf table directly |
+| `oraodp`, `adbc_oracle` | Partitions and sub-partitions | `PARTITION (…)` / `SUBPARTITION (…)` |
 | `mysql` | Partitions and sub-partitions | `PARTITION (…)` |
-| `teradata` | Populated row partitions (PPI / MLPPI); row partitioning only | `WHERE PARTITION = n` |
+| `teradata`, `adbc_teradata` | Populated row partitions (PPI / MLPPI); row partitioning only | `WHERE PARTITION = n` |
+| `adbc_db2` (1.0+) | Visible data partitions of a Db2 for LUW range-partitioned table | One range predicate per partition, so Db2 reads only that partition |
 
-Works best when the partitions have similar sizes.
+Works best when the partitions have similar sizes. On Db2 for i or z/OS, `DBPartition` falls back to `None`.
 
 ## Timepartition (0.18+)
 
@@ -82,24 +113,26 @@ specified as sorted…"*); heap and clustered columnstore targets still get it. 
 ## How to choose
 
 1. A natively partitioned table with partitions of similar size: `DBPartition` (0.18+).
-2. The engine-native method if there is one: `Ctid` (PostgreSQL), `Rowid` (Oracle), `NZDataSlice`
-   (Netezza), `Physloc` (SQL Server, read-only data only).
+2. `Physical` (1.0+) when the source is PostgreSQL, Oracle or Netezza, or SQL Server on read-only data:
+   no key to pick.
 3. Otherwise `Ntile` on a key (even chunks), or `RangeId` on a dense numeric key.
 4. `Timepartition` (0.18+) when a date column gives a natural year / month / day split.
 5. `DataDriven` when a natural grouping exists (year, month, region, partition function), or for
    **files**: one chunk per file with `filename=true` + `--datadrivenquery "select file from glob('…')"`.
 6. `Random` only when nothing else fits.
 
-On 0.17 and older, replace `DBPartition` with `DataDriven` on the partition function (SQL Server
+On 0.18 and older, replace `Physical` with the engine name (`Ctid`, `Rowid`, `Physloc`, `NZDataSlice`).
+On 0.17 and older, also replace `DBPartition` with `DataDriven` on the partition function (SQL Server
 `$PARTITION.PF(col)`) and `Timepartition` with `DataDriven` on an expression such as `YEAR(col)`.
 
 ## Examples
 
 ```
---parallelmethod Ctid --sourceschema "public" --sourcetable "orders" --degree -2
+--parallelmethod Physical --sourceschema "public" --sourcetable "orders" --degree -2
 --parallelmethod Ntile --distributekeycolumn "o_orderkey" --degree 8
 --parallelmethod DataDriven --distributekeycolumn "YEAR(o_orderdate)"
 --parallelmethod DataDriven --distributekeycolumn "o_ordermonth" --datadrivenquery "SELECT DISTINCT o_ordermonth FROM dim_month"
+--parallelmethod Physical                                                # Netezza: no schema / table needed
 --parallelmethod DataDriven --distributekeycolumn "DATASLICEID"          # Netezza alternative
 --parallelmethod DBPartition --sourceschema "dbo" --sourcetable "lineitem_part" --degree 8
 --parallelmethod Timepartition --distributekeycolumn "(l_shipdate,year,month)" --degree 8

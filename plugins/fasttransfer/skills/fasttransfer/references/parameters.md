@@ -1,4 +1,4 @@
-# FastTransfer – CLI parameter reference (0.18)
+# FastTransfer – CLI parameter reference (1.0)
 
 Generate **long flags only**, spelled exactly as below.
 
@@ -6,7 +6,7 @@ Generate **long flags only**, spelled exactly as below.
 
 | Flag | Value |
 |---|---|
-| `--sourceconnectiontype` | `mssql`, `msoledbsql`, `pgsql`, `pgcopy`, `mysql`, `oraodp`, `hana`, `teradata`, `nzsql`, `nzoledb`, `clickhouse`, `duckdb`, `duckdbstream`, `odbc`, `oledb` |
+| `--sourceconnectiontype` | `mssql`, `msoledbsql`, `pgsql`, `pgcopy`, `mysql`, `oraodp`, `hana`, `teradata`, `nzsql`, `nzbulk`, `nzoledb`, `clickhouse`, `duckdb`, `duckdbstream`, `odbc`, `oledb`; 1.0+: `adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_db2`, `adbc_teradata` (only with an `adbc_*` target) |
 | `--sourceserver` | server (see [connections.md](connections.md)) |
 | `--sourcedatabase` | database |
 | `--sourcetrusted` | switch: integrated auth |
@@ -19,9 +19,9 @@ Generate **long flags only**, spelled exactly as below.
 
 | Flag | Value |
 |---|---|
-| `--sourceschema` | schema (required by `Ctid`, `Rowid`, `NZDataSlice`, `DBPartition`) |
-| `--sourcetable` | table (required by `Ctid`, `Rowid`, `NZDataSlice`, `DBPartition`) |
-| `--query` | SQL query; used instead of the source table when given |
+| `--sourceschema` | schema (required by `DBPartition`, and by `Physical` on PostgreSQL, Oracle and SQL Server) |
+| `--sourcetable` | table (required by `DBPartition`, and by `Physical` on PostgreSQL, Oracle and SQL Server) |
+| `--query` | SQL query; used instead of the source table when given. With `Physical` it filters the source table |
 | `--fileinput` | path to a file containing the SQL query (must exist) |
 
 A table or a query is mandatory. `--query` and `--fileinput` are mutually exclusive, and neither is
@@ -31,23 +31,23 @@ allowed with `--parallelmethod DBPartition`.
 
 | Flag | Value |
 |---|---|
-| `--targetconnectiontype` | `msbulk`, `pgcopy`, `pgsql`, `orabulk`, `oradirect`, `mysqlbulk`, `clickhousebulk`, `hanabulk`, `teradata`, `nzbulk`, `duckdb` |
+| `--targetconnectiontype` | `msbulk`, `pgcopy`, `pgsql`, `orabulk`, `oradirect`, `mysqlbulk`, `clickhousebulk`, `hanabulk`, `teradata`, `nzbulk`, `duckdb`; 1.0+: `adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_db2`, `adbc_teradata` (only with an `adbc_*` source) |
 | `--targetserver` | server, or DuckDB file path |
 | `--targetdatabase` | database |
 | `--targettrusted` | switch: integrated auth |
 | `--targetuser` / `--targetpassword` | credentials |
 | `--targetconnectstring` | full connection string |
-| `--targetschema` | **mandatory** |
-| `--targettable` | **mandatory**; the table must already exist |
+| `--targetschema` | **mandatory**; exact stored case with an `adbc_*` target |
+| `--targettable` | **mandatory**; the table must already exist; exact stored case with an `adbc_*` target |
 
 ## Load behaviour
 
 | Flag | Default | Values |
 |---|---|---|
 | `--loadmode` | `Append` | `Append`, `Truncate` (empties the target table first) |
-| `--mapmethod` | `Position` | `Position` (column order), `Name` (case-insensitive name match; target columns without a source match are ignored) |
-| `--batchsize` | `1048576` | rows per bulk batch |
-| `--useworktables` | off | switch: load through intermediate work tables. Rare cases, e.g. a clustered columnstore index on the target |
+| `--mapmethod` | `Position` | `Position` (column order), `Name` (case-insensitive name match; target columns without a source match are ignored, and stay NULL) |
+| `--batchsize` | `1048576` | rows per bulk batch. No effect with an `adbc_*` target (the drivers size their own batches) |
+| `--useworktables` | off | switch: load through intermediate work tables. Rare cases, e.g. a clustered columnstore index on the target. **1.0+ only** with `msbulk` / `pgcopy` (older versions load nothing and exit 0, see troubleshooting.md). Refused with an `adbc_*` target |
 
 Batch size guidance from the docs:
 
@@ -64,7 +64,7 @@ Batch size guidance from the docs:
 
 | Flag | Default | Values |
 |---|---|---|
-| `--parallelmethod` | `None` | `None`, `Ctid`, `Physloc`, `Rowid`, `NZDataSlice`, `Ntile`, `RangeId`, `DataDriven`, `Random`, `DBPartition` (0.18+), `Timepartition` (0.18+) (`--method` is an accepted alias) |
+| `--parallelmethod` | `None` | `None`, `Physical` (1.0+), `Ntile`, `RangeId`, `DataDriven`, `Random`, `DBPartition` (0.18+), `Timepartition` (0.18+). `Ctid`, `Rowid`, `Physloc`, `NZDataSlice` are deprecated in 1.0: use `Physical` (`--method` is an accepted alias) |
 | `--distributekeycolumn` | – | column or SQL expression in the source dialect; `Timepartition`: `"(col,year)"`, `"(col,year,month)"`, `"(col,year,month,day)"` or `"(col,year,week)"` |
 | `--degree` | `-4` | `N>0` threads, `0` = all cores, `-N` = cores / N |
 | `--datadrivenquery` | – | query returning the values to split on (`DataDriven`) |
@@ -78,9 +78,9 @@ Details: [parallelism.md](parallelism.md).
 | `--runid "<id>"` | Run identifier for logs; a GUID is generated if omitted |
 | `--loglevel` | `verbose`, `debug`, `information` (default), `warning`, `error` |
 | `--settingsfile "<path>"` | Logging settings file (default `FastTransfer_Settings.json`, see environment.md) |
-| `--license "<path\|url\|content>"` | License (default `FastTransfer.lic` next to the binary). `--licence` is an alias |
+| `--license "<path\|url\|content>"` | License (default `FastTransfer.lic` in the working directory, then next to the binary). `--licence` is an alias |
 | `--nobanner` | Hide the startup banner |
-| `--version` | Print the version |
-| `-?` / `--help` | Print the usage |
+| `--version` | Print the version (works without a license) |
+| `-?` / `--help` | Print the usage (works without a license) |
 
-There is no YAML config file and no `--traceparent` in FastTransfer 0.18 (those are FastBCP features).
+There is no YAML config file and no `--traceparent` in FastTransfer 1.0 (those are FastBCP features).

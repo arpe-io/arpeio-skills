@@ -1,6 +1,7 @@
 # FastTransfer – Examples
 
-These are adapted from the official docs (FastTransfer 0.18) with canonical long flags. Credentials such as
+These are adapted from the official docs and the README shipped with FastTransfer 1.0, with canonical
+long flags. On 0.18 and older, replace `Physical` with the engine name given in each title. Credentials such as
 `FastUser` / `FastPassword` are doc placeholders. In real commands use trusted auth or shell variables
 (see SKILL.md, "Secrets").
 
@@ -47,7 +48,7 @@ These are adapted from the official docs (FastTransfer 0.18) with canonical long
   --loadmode "Truncate"
 ```
 
-## PostgreSQL → PostgreSQL, binary COPY with Ctid (PowerShell)
+## PostgreSQL → PostgreSQL, binary COPY with Physical (Ctid) (PowerShell)
 
 ```powershell
 .\FastTransfer.exe `
@@ -65,7 +66,7 @@ These are adapted from the official docs (FastTransfer 0.18) with canonical long
   --targetpassword "FastPassword" `
   --targetschema "tpch_10" `
   --targettable "orders" `
-  --parallelmethod "Ctid" `
+  --parallelmethod "Physical" `
   --degree 10 `
   --loadmode "Truncate"
 ```
@@ -92,31 +93,34 @@ These are adapted from the official docs (FastTransfer 0.18) with canonical long
   --license "//SharedUnc/licenses/FastTransfer/FastTransfer.lic"
 ```
 
-## PostgreSQL → Oracle, orabulk with Ctid (PowerShell)
+## PostgreSQL → Oracle through ADBC, Physical (Ctid) (PowerShell, 1.0+)
+
+The native pair (`pgsql` / `pgcopy` → `orabulk`) fails when the source table has a `date` column, as
+`orders` does (troubleshooting.md, "Known limitations in 1.0"): this transfer uses `adbc_*` on both ends.
+The Oracle names are in their stored case.
 
 ```powershell
 .\FastTransfer.exe `
-  --sourceconnectiontype "pgsql" `
+  --sourceconnectiontype "adbc_pgsql" `
   --sourceserver "localhost:5432" `
   --sourcedatabase "tpch" `
   --sourceuser "FastUser" `
   --sourcepassword "FastPassword" `
   --sourceschema "tpch_10" `
   --sourcetable "orders" `
-  --targetconnectiontype "orabulk" `
+  --targetconnectiontype "adbc_oracle" `
   --targetserver "localhost:1521/ORCLPDB" `
   --targetdatabase "ORCLPDB" `
   --targetuser "TPCH_IN" `
   --targetpassword "TPCH_IN" `
   --targetschema "TPCH_IN" `
   --targettable "ORDERS" `
-  --parallelmethod "Ctid" `
-  --degree 12 `
-  --loadmode "Truncate" `
-  --batchsize 100000
+  --parallelmethod "Physical" `
+  --degree 4 `
+  --loadmode "Truncate"
 ```
 
-## Oracle → SQL Server, Rowid (PowerShell)
+## Oracle → SQL Server, Physical (Rowid) (PowerShell)
 
 ```powershell
 .\FastTransfer.exe `
@@ -133,7 +137,7 @@ These are adapted from the official docs (FastTransfer 0.18) with canonical long
   --targettrusted `
   --targetschema "dbo" `
   --targettable "orders" `
-  --parallelmethod "Rowid" `
+  --parallelmethod "Physical" `
   --loadmode "Truncate" `
   --degree 12
 ```
@@ -158,7 +162,9 @@ These are adapted from the official docs (FastTransfer 0.18) with canonical long
   --loadmode "Truncate"
 ```
 
-## Read-only SQL Server source → SQL Server, Physloc, map by name (PowerShell)
+## Read-only SQL Server source → SQL Server, Physical (Physloc), map by name (PowerShell)
+
+`--sourceschema` and `--sourcetable` are required since 1.0; the `--query` filters that table.
 
 ```powershell
 .\FastTransfer.exe `
@@ -167,7 +173,8 @@ These are adapted from the official docs (FastTransfer 0.18) with canonical long
   --sourcetrusted `
   --sourcedatabase "tpch_test" `
   --sourceschema "dbo" `
-  --query "select * from dbo.orders_15M" `
+  --sourcetable "orders_15M" `
+  --query "select * from dbo.orders_15M where o_orderdate >= '1995-01-01'" `
   --targetconnectiontype "msbulk" `
   --targetserver "localhost,11433" `
   --targettrusted `
@@ -176,7 +183,7 @@ These are adapted from the official docs (FastTransfer 0.18) with canonical long
   --targettable "orders_ccsi" `
   --loadmode "Truncate" `
   --batchsize 120000 `
-  --parallelmethod "Physloc" `
+  --parallelmethod "Physical" `
   --degree 10 `
   --mapmethod "Name"
 ```
@@ -291,6 +298,76 @@ If the source needs compact date literals, set `$env:FASTTRANSFER_DATEFORMAT = "
   --targettable "orders_part" `
   --parallelmethod "None" `
   --loadmode "Append"
+```
+
+## Db2 → SQL Server through ADBC, usual flags (PowerShell, 1.0+)
+
+`adbc_*` on both ends. The target names are written in their stored case; the `--license` file holds the
+FastTransfer block and the ADBC driver block.
+
+```powershell
+.\FastTransfer.exe `
+  --sourceconnectiontype "adbc_db2" `
+  --sourceserver "dbhost:50000" `
+  --sourcedatabase "TPCH" `
+  --sourceuser "db2inst1" `
+  --sourcepassword $env:DB2_PASSWORD `
+  --sourceschema "TPCH_SF10" `
+  --sourcetable "ORDERS" `
+  --targetconnectiontype "adbc_mssql" `
+  --targetserver "localhost\SS2025" `
+  --targettrusted `
+  --targetdatabase "tpch_test" `
+  --targetschema "dbo" `
+  --targettable "orders" `
+  --parallelmethod "None" `
+  --license "FastTransfer.lic"
+```
+
+## PostgreSQL → SQL Server through ADBC, RangeId (Linux, 1.0+)
+
+```bash
+./FastTransfer \
+  --sourceconnectiontype "adbc_pgsql" \
+  --sourceserver "pghost:5432" \
+  --sourcedatabase "tpch" \
+  --sourceuser "$FT_SOURCE_USER" \
+  --sourcepassword "$FT_SOURCE_PASSWORD" \
+  --sourceschema "public" \
+  --sourcetable "lineitem" \
+  --targetconnectiontype "adbc_mssql" \
+  --targetserver "sqlhost:1433" \
+  --targetdatabase "tpch" \
+  --targetuser "$FT_TARGET_USER" \
+  --targetpassword "$FT_TARGET_PASSWORD" \
+  --targetschema "dbo" \
+  --targettable "lineitem" \
+  --loadmode "Truncate" \
+  --parallelmethod "RangeId" \
+  --distributekeycolumn "l_orderkey" \
+  --degree 4 \
+  --license "/opt/fasttransfer/FastTransfer.lic"
+```
+
+## Oracle → PostgreSQL through ADBC, connection strings (Linux, 1.0+)
+
+The connection strings use the drivers' `uri=` form (not ADO.NET keywords); a password holding `@`, `:`
+or `/` must be percent-encoded. `ORA_URI` and `PG_URI` are shell variables set beforehand, e.g.
+`uri=oracle://user:password@orahost:1521/orclpdb1` and `uri=postgresql://user:password@pghost:5432/tpch`.
+
+```bash
+./FastTransfer \
+  --sourceconnectiontype "adbc_oracle" \
+  --sourceconnectstring "$ORA_URI" \
+  --sourceschema "TPCH" \
+  --sourcetable "ORDERS" \
+  --targetconnectiontype "adbc_pgsql" \
+  --targetconnectstring "$PG_URI" \
+  --targetschema "public" \
+  --targettable "orders" \
+  --loadmode "Truncate" \
+  --parallelmethod "Physical" \
+  --degree 4
 ```
 
 ## Docker: CSV files → SQL Server
