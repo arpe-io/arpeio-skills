@@ -73,6 +73,26 @@ cp -r arpeio-skills/plugins/arpeio-adbc-drivers/skills/arpeio-adbc-drivers <your
 For agents without skill support, paste the content of `SKILL.md` as custom instructions. The files in
 `references/` can be attached or pasted when needed.
 
+## Data and privacy
+
+The plugins in this repository contain only Markdown instructions. They ship no code: no scripts,
+binaries, hooks or MCP servers. Nothing runs on your machine when you install or use them.
+
+- **No data is sent anywhere by the plugins.** They have no telemetry and make no network calls.
+- The agent reads the skill files locally and uses them to write commands, credentials files and
+  code for you. You decide whether to run what it produces, against your own databases and storage.
+- A skill may ask the agent to check the installed product version, or to open the public
+  documentation sites (`*-docs.arpe.io`) when your version is newer than the one the skill covers.
+  Any such fetch is made by your agent with its own tools and permissions, and sends no data about you.
+- The `arpeio-adbc-drivers` skill gives the official installer command
+  (`curl -fsSL https://raw.githubusercontent.com/arpe-io/adbc-drivers/main/install.sh | sh …`), which
+  downloads the drivers from GitHub. It runs only if you or your agent run it, under your agent's
+  usual permission prompts.
+- The arpe.io products themselves (FastBCP, FastTransfer, MigratorXpress, LakeXpress, ADBC drivers)
+  are separate software, installed and licensed separately.
+
+arpe.io privacy policy: https://www.arpe.io/privacy
+
 ## Product versions
 
 Each skill states the product version its facts were checked against. Before building a command, the
