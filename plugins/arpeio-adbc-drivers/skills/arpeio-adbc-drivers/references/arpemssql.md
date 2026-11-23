@@ -1,4 +1,4 @@
-# ArpeMSSQL – SQL Server ADBC driver (0.7.6)
+# ArpeMSSQL – SQL Server ADBC driver (0.8.0)
 
 Load name `arpemssql`. Native MS-TDS over TCP/TLS (no ODBC, no FreeTDS): TDS 7.4 by default, TDS 8.0
 strict encryption on request (since 0.7.5). Options `adbc.arpemssql.*`.
@@ -93,7 +93,7 @@ any other value → `INVALID_ARGUMENT` (since 0.7.2; before, some read a typo as
 | `adbc.arpemssql.login_timeout` | `30` | TCP connect budget, seconds (`0` = 30) |
 | `adbc.arpemssql.query_timeout` | `0` (none) | Seconds of server silence per wait (not whole query); cancels with ATTENTION → `ADBC_STATUS_TIMEOUT`, connection kept (since 0.7.2). Settable on an open connection |
 | `adbc.arpemssql.buffer_size` | `32000` | Rows per Arrow batch (max 10,000,000) |
-| `adbc.arpemssql.packet_size` | `8192` | `512..32767`; ingest on its own session requests 32767 when unset (since 0.7.2) |
+| `adbc.arpemssql.packet_size` | `32767` (0.7.7+; `8192` before) | `512..32767`; the server may grant less; larger packets read text-heavy results faster |
 | `adbc.arpemssql.uuid_casing` | `lower` | `upper` |
 | `adbc.arpemssql.geospatial` | `geoarrow` | `geoarrow` (WKB + `geoarrow.wkb` extension), `wkb`, `varbinary` (raw bytes) |
 | `adbc.arpemssql.timestamp_precision` | `microsecond` | `nanosecond` for DATETIME2(7) / TIME(7) |
@@ -131,7 +131,10 @@ Statement options: `adbc.arpemssql.batch_size` (rows per batch), `adbc.arpemssql
 
 TLS: certificates are checked against the OS store plus `tls_ca_file`: Windows trusted ROOT store; Linux
 the distro CA bundle (RHEL, Debian / Ubuntu, SUSE paths; since 0.7.3), replaced by `SSL_CERT_FILE` /
-`SSL_CERT_DIR` if set. Same store for the Entra sign-in. TLS 1.2 minimum. **TDS 8.0 strict** (`tds_version=8.0`, `Encrypt=Strict`, URI `?encrypt=strict`; since 0.7.5): TLS
+`SSL_CERT_DIR` if set. Same store for the Entra sign-in. TLS 1.2 minimum; TLS 1.3 only with TDS 8.0. Read back what was negotiated (0.7.11+): connection options
+`adbc.arpemssql.tls.version`, `tls.group`, `tls.cipher`; database option `adbc.arpemssql.openssl_version`
+(no licence needed); `ARPEIO_ADBC_LOG_TLS=1` prints one stderr line per handshake. Releases bundle
+OpenSSL 3.5 (Linux and Windows); `X25519MLKEM768` is offered first. **TDS 8.0 strict** (`tds_version=8.0`, `Encrypt=Strict`, URI `?encrypt=strict`; since 0.7.5): TLS
 handshake first (ALPN `tds/8.0`, SNI, TLS 1.2 / 1.3), certificate always verified, `trust_server_cert`
 refused (use `tls_ca_file` + `host_name_in_certificate`). Needed when the server has Force Strict
 Encryption (SQL Server 2022+, Azure SQL); also accepted by non-strict servers whose cert verifies.
@@ -146,7 +149,10 @@ Read (SQL Server → Arrow): `TINYINT` → uint8; `SMALLINT`/`INT`/`BIGINT` → 
 `DATETIMEOFFSET` → timestamp with tz UTC; `VECTOR(n)` → fixed_size_list<float32>[n]; `VECTOR(n, float16)`
 → utf8 (JSON text); geometry / geography → WKB per `geospatial`. Since 0.7.6: `sql_variant` → utf8
 (each value in its base type's text form; base type lost), `JSON` → utf8 + `arrow.json` extension
-(`ARPEMSSQL_JSON=off` → plain utf8). SQL type name in field metadata `ARPEMSSQL:type`.
+(`ARPEMSSQL_JSON=off` → plain utf8). SQL type name in field metadata `ARPEMSSQL:type`. Since 0.8.0
+`CHAR` / `VARCHAR` with a UTF-8 collation (SQL Server 2019+) and `JSON` arrive as UTF-8, and their
+`ARPEMSSQL:type` is `varchar(n)` / `char(n)` / `varchar(max)` (was `nvarchar…`); `ARPEMSSQL_UTF8=off`
+restores the old form. Values read the same.
 
 Ingest `create` DDL (Arrow → SQL Server): bool → BIT; int8 → SMALLINT; uint8 → TINYINT; int16 →
 SMALLINT; int32 → INT; int64 → BIGINT; uint64 → DECIMAL(20,0); float32/64 → REAL/FLOAT; decimal →
@@ -164,6 +170,10 @@ Refused: null, float16 scalars, duration, interval, nested types.
 - WKB / `geoarrow.wkb` columns load into existing `geometry` / `geography` columns (`create` makes
   VARBINARY). **Needs 0.7.6+** (earlier: error 4816); curves and geography `FULLGLOBE` since 0.7.6.
 - `XML` / `JSON` targets take any utf8 column. NaN / infinity refused. Nanoseconds floored to 100 ns.
+- `VECTOR` targets also take JSON-array text (`'[0.1, -2.5, 3]'`) at any length (0.7.9+).
+- `sql_variant` targets (0.7.10+): a plain Arrow column gives every row the same base type; a **dense
+  union** gives each row the base type of its child. A bound `arrow.uuid` parameter is sent as
+  `uniqueidentifier` (0.7.10+).
 
 ## Ingest (native INSERT BULK)
 
@@ -174,7 +184,6 @@ is set. The target is resolved as the server does (default schema, synonyms, col
 | Statement option | Default | Meaning |
 |---|---|---|
 | `arpemssql.bulk_tablock` | `true` | TABLOCK: BU lock + minimal logging on a heap, exclusive lock on an indexed table |
-| `arpemssql.bulk_parallel` | `false` | Set on every connection of a parallel load: TABLOCK only on a heap without index; explicit `bulk_tablock` wins |
 | `arpemssql.bulk_batch_size` | `1000000` | Rows per sub-batch (was 10,000,000 before 0.7.2) |
 | `arpemssql.bulk_atomic` | `false` | With autocommit on: each sub-batch commits (failed `replace` keeps the old table via a staging table, failed `create` drops it); `true` = whole ingest (DDL + rows) in one transaction. Was `true` before 0.7.2 |
 | `arpemssql.bulk_keep_identity` | `true` | Load source values into IDENTITY (was `false` before 0.7.2) |
@@ -233,14 +242,12 @@ with conn.cursor() as cur:
 | `Column 'x', row N: value of … is longer than NVARCHAR(n)` / `… value NaN …` | Pre-create wider / `MAX` columns and `append`; replace NaN / infinity with NULL |
 | `Invalid column type from bcp client` (4816) | Match Arrow nullability to the target (`nullable=False`); WKB into geometry: 0.7.6+ |
 | Ingested rows disappear | `conn.commit()` (dbapi autocommit is off) |
-| Parallel loads into an indexed table run one at a time | `arpemssql.bulk_parallel=true` on each connection |
 | `Query timed out: no reply from the server within query_timeout …` / `TIMEOUT` | Raise `query_timeout` (`0` = none) |
 | Bound DML fails | Error names the row: `failed at parameter row N (N rows before it were executed)`; value errors → `INVALID_ARGUMENT` |
 | Server error details | Python exception `.details`: `arpemssql.sqlserver.error_number`, `.state`, `.severity`, `.message` |
 | Stop a query | `cur.adbc_cancel()` → `CANCELLED`, the connection stays usable |
 
-Docs (0.7.6) vs driver 0.7.6: `arpemssql.bulk_parallel` exists but the public docs do not list it
-(they only say the `bcp_` aliases are frozen); the named-instance error is
+Docs vs driver 0.8.0: the named-instance error is
 `Cannot resolve SQL Server instance '…' on host '…'` (docs quote "could not determine port for
 instance"); the federated-plus-password error reads as in the table above (docs: "Federated auth cannot
 be combined with a password"); `ARPEMSSQL_BULK_VARCHAR_WIRE` and `ARPEIO_ADBC_QUIET` are not in the

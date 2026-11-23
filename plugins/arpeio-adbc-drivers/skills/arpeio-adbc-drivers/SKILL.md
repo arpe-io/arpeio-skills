@@ -1,11 +1,11 @@
 ---
 name: arpeio-adbc-drivers
-description: Install, configure and use the arpe.io (Arpeio) ADBC drivers - ArpeMSSQL (`arpemssql`, SQL Server / Azure SQL / Fabric), ArpePGSQL (`arpepgsql`, PostgreSQL), ArpeOracle (`arpeoracle`, Oracle / Autonomous Database), ArpeNetezza (`arpenz`, IBM Netezza) and ArpeTeradata (`arpeteradata`, Teradata / VantageCloud). Native wire-protocol drivers returning Apache Arrow, loaded by name from Python (adbc_driver_manager), C/C++, C#, Go, Java, R or Rust. Use when the user mentions one of these drivers or arpe.io ADBC, or wants to read a SQL Server / PostgreSQL / Oracle / Netezza / Teradata table into Arrow, pandas or Parquet through ADBC, bulk-load Arrow data into one of them, write a connection string or URI for these drivers, set up their licence, or troubleshoot a connection, TLS, authentication or ingest error.
+description: Install, configure and use the arpe.io (Arpeio) ADBC drivers - ArpeMSSQL (`arpemssql`, SQL Server / Azure SQL / Fabric), ArpePGSQL (`arpepgsql`, PostgreSQL), ArpeOracle (`arpeoracle`, Oracle / Autonomous Database), ArpeNetezza (`arpenz`, IBM Netezza), ArpeTeradata (`arpeteradata`, Teradata / VantageCloud) and ArpeDb2 (`arpedb2`, IBM Db2 for LUW / Db2 for i). Native wire-protocol drivers returning Apache Arrow, loaded by name from Python (adbc_driver_manager), C/C++, C#, Go, Java, R or Rust. Use when the user mentions one of these drivers or arpe.io ADBC, or wants to read a SQL Server / PostgreSQL / Oracle / Netezza / Teradata / Db2 table into Arrow, pandas or Parquet through ADBC, bulk-load Arrow data into one of them, write a connection string or URI for these drivers, set up their licence, or troubleshoot a connection, TLS, authentication or ingest error.
 ---
 
 # arpe.io ADBC drivers
 
-Five pure-native [ADBC](https://arrow.apache.org/adbc/) drivers. Each speaks its database's wire
+Six pure-native [ADBC](https://arrow.apache.org/adbc/) drivers. Each speaks its database's wire
 protocol directly (no ODBC, no vendor client library) and moves Apache Arrow both ways: query results
 come back as Arrow record batches, and Arrow data is bulk-loaded with ADBC ingest.
 
@@ -14,7 +14,7 @@ documented options. Never invent hosts, credentials or names: ask. Never write r
 text into code you show; use placeholders or environment variables.
 
 Facts below are checked against the docs and the driver code at the latest release tags: **ArpeMSSQL
-0.7.6, ArpePGSQL 0.4.7, ArpeOracle 0.4.2, ArpeNetezza 0.3.7, ArpeTeradata 0.3.5** (releases are frequent;
+0.8.0, ArpePGSQL 0.5.2, ArpeOracle 0.4.5, ArpeNetezza 0.3.9, ArpeTeradata 0.3.6, ArpeDb2 0.4.0** (releases are frequent;
 the docs site can lag a patch behind). References (load only what you need):
 
 | Need | File |
@@ -22,28 +22,29 @@ the docs site can lag a patch behind). References (load only what you need):
 | Installer, versions, manifests, licence | [references/install.md](references/install.md) |
 | Using a driver from Python / C / C# / Go / Java / R / Rust, query, parameters, ingest, transactions | [references/clients.md](references/clients.md) |
 | SQL Server driver: options, URI, connection string, auth (SQL, Kerberos / SSPI, Entra ID), TLS, TDS 8.0, types, bulk insert | [references/arpemssql.md](references/arpemssql.md) |
-| PostgreSQL driver: options, URI, connection string, SCRAM, sslmode, `.pgpass`, types, COPY ingest | [references/arpepgsql.md](references/arpepgsql.md) |
-| Oracle driver: options, EZConnect, TNS, tnsnames, wallets, IAM / Entra tokens, NNE, types, direct path ingest | [references/arpeoracle.md](references/arpeoracle.md) |
+| PostgreSQL driver: options, URI, connection string, SCRAM, Kerberos / SSPI, sslmode, `.pgpass`, types (arrays, pgvector, PostGIS), COPY ingest | [references/arpepgsql.md](references/arpepgsql.md) |
+| Oracle driver: options, EZConnect, TNS, tnsnames, wallets, IAM / Entra tokens, Kerberos, NNE, types (objects, VECTOR), PL/SQL OUT parameters, direct path ingest | [references/arpeoracle.md](references/arpeoracle.md) |
 | Netezza driver: options, URI, TLS (NPS 11 / NPS 7), types, external-table ingest | [references/arpenetezza.md](references/arpenetezza.md) |
 | Teradata driver: options, URI, connection string, TLS vs legacy port (TTU), TD2 / LDAP / JWT / Kerberos, cloud, types, ingest | [references/arpeteradata.md](references/arpeteradata.md) |
+| Db2 driver: options, URI, connection string, encrypted logon, Kerberos, tokens, TLS, Db2 for i packages, isolation, types, ingest, stored procedures | [references/arpedb2.md](references/arpedb2.md) |
 
 Official docs: https://adbc-drivers-docs.arpe.io/
 
-## The five drivers
+## The six drivers
 
-| | ArpeMSSQL | ArpePGSQL | ArpeOracle | ArpeNetezza | ArpeTeradata |
-|---|---|---|---|---|---|
-| Database | SQL Server 2016–2025, Azure SQL, Fabric | PostgreSQL 12–17 (+ PG-wire engines) | Oracle 12.1+ (19c, 21c, 23ai/26ai), Autonomous DB | Netezza NPS 11 (IBM Cloud), NPS 7 | Teradata 20.00 (TLS logon: 16.20.53.30+), cloud |
-| Load name (`driver=`) | `arpemssql` | `arpepgsql` | `arpeoracle` | **`arpenz`** | `arpeteradata` |
-| Option prefix | `adbc.arpemssql.*` | `adbc.arpepgsql.*` | `adbc.arpeoracle.*` | `adbc.arpenz.*` | `adbc.arpeteradata.*` |
-| URI schemes | `sqlserver://`, `mssql://` | `postgresql://`, `postgres://` | `oracle://` | `netezza://`, `postgresql://` | `teradata://` |
-| URI path means | **instance name** (database in `?database=`) | database | service name | database | default database |
-| Default port | 1433 | 5432 | 1521 | 5480 | 443 (TLS), 1025 (legacy) |
-| Parameter marker | `?` (or `@p1…`, 0.7.6) | `$1, $2…` | `:1` / `:name` | `?` or `$1` | `?` |
-| Default transport security | login-only TLS (`encrypt=false`) | `sslmode=prefer` | none (`ssl_mode=disable`, NNE `accepted`) | `sslmode=prefer` | `sslmode=prefer` (TLS unverified, else legacy port in clear) |
-| Ingest mechanism | native `INSERT BULK` | `COPY … FROM STDIN (FORMAT binary)` | direct path load (autocommit on), else array-bound `INSERT` | external table, INSERT fallback | packed parameterised `INSERT` |
+| | ArpeMSSQL | ArpePGSQL | ArpeOracle | ArpeNetezza | ArpeTeradata | ArpeDb2 |
+|---|---|---|---|---|---|---|
+| Database | SQL Server 2016–2025, Azure SQL, Fabric | PostgreSQL 12–18 (+ PG-wire engines) | Oracle 12.1+ (19c, 21c, 23ai/26ai), Autonomous DB | Netezza NPS 11 (IBM Cloud), NPS 7 | Teradata 20.00 (TLS logon: 16.20.53.30+), cloud | Db2 for LUW 11.5 / 12.1, Db2 for i 7.5 (no z/OS) |
+| Load name (`driver=`) | `arpemssql` | `arpepgsql` | `arpeoracle` | **`arpenz`** | `arpeteradata` | `arpedb2` |
+| Option prefix | `adbc.arpemssql.*` | `adbc.arpepgsql.*` | `adbc.arpeoracle.*` | `adbc.arpenz.*` | `adbc.arpeteradata.*` | `adbc.arpedb2.*` |
+| URI schemes | `sqlserver://`, `mssql://` | `postgresql://`, `postgres://`, `arpepgsql://` | `oracle://`, `arpeoracle://` | `netezza://`, `postgresql://` | `teradata://` | `db2://`, `arpedb2://` |
+| URI path means | **instance name** (database in `?database=`) | database | service name | database | default database | database |
+| Default port | 1433 | 5432 | 1521 | 5480 | 443 (TLS), 1025 (legacy) | 50000 (LUW; SSL port separate), 446 / 448 TLS (Db2 for i) |
+| Parameter marker | `?` (or `@p1…`, 0.7.6) | `$1, $2…` | `:1` / `:name` | `?` or `$1` | `?` | `?` |
+| Default transport security | login-only TLS (`encrypt=false`) | `sslmode=prefer` | none (`ssl_mode=disable`, NNE `accepted`) | `sslmode=prefer` | `sslmode=prefer` (TLS unverified, else legacy port in clear) | none (`sslmode=disable`); encrypted password logon tried first |
+| Ingest mechanism | native `INSERT BULK` | `COPY … FROM STDIN (FORMAT binary)` | direct path load (autocommit on), else array-bound `INSERT` | external table, INSERT fallback | packed parameterised `INSERT` | multi-row parameterised `INSERT` |
 
-All five: Linux x64 (glibc ≥ 2.28) and Windows x64 only (no macOS), ADBC API 1.1, OpenSSL built in, a
+All six: Linux x64 (glibc ≥ 2.28) and Windows x64 only (no macOS), ADBC API 1.1, OpenSSL built in, a
 licence required at runtime (no trial build). ArpeTeradata needs Teradata's TTU (CLIv2) only for the
 legacy port; its TLS logon needs nothing from Teradata.
 
@@ -60,11 +61,14 @@ curl -fsSL https://raw.githubusercontent.com/arpe-io/adbc-drivers/main/install.s
 conn.adbc_get_info()["driver_version"]     # from an open connection
 ```
 
-- **Same as above** (MSSQL 0.7.6, PGSQL 0.4.7, Oracle 0.4.2, Netezza 0.3.7, Teradata 0.3.5) → use this
+- **Same as above** (MSSQL 0.8.0, PGSQL 0.5.2, Oracle 0.4.5, Netezza 0.3.9, Teradata 0.3.6, Db2 0.4.0) → use this
   skill as is.
 - **Older** → options and fixes noted "since …" in the driver file may be missing (e.g. MSSQL Linux
-  Kerberos, Entra `Authentication=` and TDS 8.0 need 0.7.5, WKB into geometry 0.7.6; Oracle direct path
-  ingest 0.4.0, token logins over TLS only 0.4.1): suggest upgrading with the installer.
+  Kerberos, Entra `Authentication=` and TDS 8.0 need 0.7.5, WKB into geometry 0.7.6; PGSQL Linux
+  Kerberos, enforced `query_timeout` and the OS CA store 0.4.8, arrays and `money` 0.5.1; Oracle direct
+  path ingest 0.4.0, every option in every connection form 0.4.3, Linux Kerberos, objects, VECTOR writes
+  and OUT parameters 0.4.4; read-only `tls.*` options: MSSQL 0.7.11, PGSQL 0.4.10, Oracle 0.4.5, Netezza
+  0.3.9, Teradata 0.3.6): suggest upgrading with the installer.
 - **Newer** → this skill may miss new options or changed defaults: confirm anything you rely on in
   https://adbc-drivers-docs.arpe.io/llms-full.txt (whole documentation in one file), and say that you
   did. The installer's `--list` gives the latest published versions.
@@ -79,9 +83,10 @@ conn.adbc_get_info()["driver_version"]     # from an open connection
    - a **URI** (`db_kwargs={"uri": "…"}`) for simple cases;
    - an ADO.NET **connection string** (`adbc.arpe<db>.connection_string`) when the user already has one;
    - **discrete options** (`adbc.arpe<db>.<field>`, `adbc.arpenz.*` for Netezza) for everything else, and
-     for the options that have no URI / connection-string form (TLS files, type mappings, timeouts,
-     licence).
-   A discrete option always wins over the same field from a URI or connection string.
+     for the options that have no URI / connection-string form (it varies by driver; on ArpeOracle
+     every option has all three forms).
+   A discrete option wins over the same field from a URI or connection string (ArpeOracle: before
+   `AdbcDatabaseInit`; after it, the last value set wins).
 3. **Secure it**: choose the TLS setting explicitly (verified TLS for anything outside a lab), and the
    auth mode the driver really supports on the user's OS (see hard rules).
 4. **Query / ingest** (clients.md): `cursor.execute(…)` + `fetch_arrow_table()` / `fetch_record_batch()`;
@@ -94,33 +99,46 @@ conn.adbc_get_info()["driver_version"]     # from an open connection
 - **Python `dbapi.connect()` starts with autocommit OFF**: call `conn.commit()` after DML or
   `adbc_ingest`, or pass `autocommit=True`. Otherwise the data is rolled back at close.
 - **Load names are exact**: `arpenz` for Netezza (not `arpenetezza`). Set every option in `db_kwargs`
-  (database options). Use the full `adbc.arpe<db>.*` keys there: some bare aliases are connection-only
-  (e.g. PostgreSQL `sslmode` → use `adbc.arpepgsql.sslmode`).
+  (database options). Use the full `adbc.arpe<db>.*` keys there: some bare aliases are not accepted at
+  every level (e.g. ArpePGSQL 0.4.7 and older: bare `sslmode` was connection-only).
 - **Integrated / Kerberos auth**:
   - ArpeMSSQL: Windows SSPI (NTLM fallback unless `require_kerberos=true`), and Linux Kerberos since
     0.7.5 (needs MIT Kerberos on the host: `krb5-libs` / `libgssapi-krb5-2`).
-  - ArpePGSQL: Windows SSPI only.
-  - ArpeOracle, ArpeNetezza: none in released binaries, even though the code accepts the options.
+  - ArpePGSQL: Windows SSPI (Kerberos for a `gss` line, Negotiate for `sspi`; `require_kerberos=true`
+    refuses NTLM), and Linux Kerberos since 0.4.8 (MIT Kerberos on the host).
+  - ArpeOracle: Linux Kerberos since 0.4.4 (`auth_method=kerberos`, `krb5_*` options, MIT Kerberos on
+    the host); none on Windows.
+  - ArpeNetezza: none (the server's Kerberos logon is refused).
+  - ArpeDb2: `auth.mechanism=kerberos` + `kerberos.spn` on Linux (MIT Kerberos on the host); Windows
+    SSPI built but not yet validated.
   - ArpeTeradata: `logmech=KRB5` / `TDNEGO` over TLS on Linux (MIT `libgssapi_krb5.so.2`; Windows SSPI
     built but not validated), or on the legacy port through TTU. LDAP works **only on the legacy port**.
   Otherwise use passwords (or Entra ID / OCI IAM / JWT tokens where supported).
-- **TLS trust store**: ArpePGSQL and ArpeNetezza never read OS certificate stores: give `ssl_root_cert`
-  (or `SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt` on RHEL). ArpeMSSQL (Linux bundles 0.7.3+),
-  ArpeOracle (0.3.12+) and ArpeTeradata use the Windows ROOT store and the Linux distro CA bundles.
+- **TLS trust store**: ArpeNetezza never reads OS certificate stores: give `ssl_root_cert` (or
+  `SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt` on RHEL). ArpePGSQL (0.4.8+, `verify-full` only, after
+  `ssl_root_cert` / `PGSSLROOTCERT` / `~/.postgresql/root.crt`; `verify-ca` needs a root certificate),
+  ArpeMSSQL (Linux bundles 0.7.3+), ArpeOracle (0.3.12+), ArpeTeradata and ArpeDb2 (`verify-full`;
+  `verify-ca` needs `sslrootcert`) use the Windows ROOT store and the Linux distro CA bundles.
+- **ArpeDb2 TLS is opt-in and on a separate port**: set `sslmode` and point `port` at the server's SSL
+  port (plain port + `sslmode` → login timeout). Without TLS the driver tries the encrypted password
+  logon first; `auth.require_encryption=true` refuses a clear-text password. A private CA always goes in the driver's CA option.
 - **Teradata `sslmode=prefer` (default) can fall back to the clear legacy port** (1025, needs TTU): use
   `require` or `verify-full` to stay on TLS (cloud / trial environments: `require` on 443).
 - **One open result per connection**: read a result to the end (or close the cursor) before the next
-  statement on the same connection, or open another connection. Parallelism = several connections.
+  statement on the same connection, or open another connection. ArpeDb2 is the exception (up to 64 open
+  results per connection).
 - **Ingest table names are quoted as given** (case-sensitive): on Oracle use upper-case names
   (`"SALES"`, not `"sales"`). `adbc_ingest` modes: `create`, `append`, `replace`, `create_append`.
 - **Oracle fast ingest needs autocommit on**: `ingest_method=auto` uses the direct path load only with
   autocommit on, so from dbapi pass `autocommit=True` (otherwise array-bound `INSERT`, much slower).
 - **Teradata ingest truncates long strings silently** (Teradata mode; created columns are
   `VARCHAR(4000)`): raise `adbc.arpeteradata.ingest.varchar_length`, or pre-create the table and `append`.
-- **`query_timeout` does nothing** on ArpePGSQL and ArpeNetezza (use `socket_timeout`, SQL
-  `statement_timeout`, or cancel); ArpeOracle has none (`socket_timeout`, `login_timeout`). It works on
-  ArpeMSSQL (per wait, cancels, connection kept) and ArpeTeradata (socket read timeout, connection
-  closed).
+- **`query_timeout`** works on ArpeMSSQL (per wait, cancels, connection kept), ArpePGSQL 0.4.8+ (server
+  `statement_timeout`, `TIMEOUT` / SQLSTATE 57014, connection kept) and ArpeTeradata (socket read timeout,
+  connection closed) and ArpeDb2 (per wait, connection closed). It does nothing on ArpeNetezza (use `socket_timeout` or cancel); ArpeOracle has
+  none (`socket_timeout`, `login_timeout`).
+- **Oracle error numbers** (0.4.4+): Python `Error.vendor_code` is `None` for Oracle server errors; the
+  ORA number is in `Error.details` under `arpeoracle.oracle.error_number`.
 - **Licence**: the first source found is the only one used (no fall-through): option
   `arpeio.adbc.license` → option `arpeio.adbc.license_file` → env `ARPEIO_ADBC_LICENCE` → env
   `ARPEIO_ADBC_LICENCE_FILE` (British spelling) → `arpeio_adbc.lic` next to the driver library.

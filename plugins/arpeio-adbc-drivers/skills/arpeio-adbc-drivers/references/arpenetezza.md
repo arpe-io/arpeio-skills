@@ -1,4 +1,4 @@
-# ArpeNetezza – IBM Netezza ADBC driver (0.3.7)
+# ArpeNetezza – IBM Netezza ADBC driver (0.3.9)
 
 Load name **`arpenz`** (not `arpenetezza`). Native Netezza protocol (HSV2 handshake + DBOS binary
 results) over TCP/TLS: no ODBC, no nzpy. Options `adbc.arpenz.*`.
@@ -88,6 +88,10 @@ Server=nzhost,5480;Database=SYSTEM;User ID=admin;Password=<pw>;Encrypt=true;Trus
 - IBM Cloud doesn't send its intermediate certificate: put intermediate **and** root in
   `ssl_root_cert` (DigiCert Global G2 TLS RSA SHA256 2020 CA1 + DigiCert Global Root G2).
 - `verify-full`: connect by DNS name.
+- Read back what was negotiated (0.3.9+): connection options `adbc.arpenz.tls.version`, `tls.group`,
+  `tls.cipher` (`""` before the session opens or without TLS), database option
+  `adbc.arpenz.openssl_version` (no licence needed). `ARPEIO_ADBC_LOG_TLS=1` prints one stderr line per
+  handshake. Releases bundle OpenSSL 3.5; `X25519MLKEM768` is offered first.
 
 ## Types
 
@@ -173,5 +177,5 @@ with dbapi.connect(driver="arpenz", db_kwargs=db_kwargs) as conn:
 | Autocommit seems off | Use exactly `true` or `1` |
 | `Unknown database option: …` | Typo or removed option |
 
-Docs vs driver 0.3.7: when both a URI and a connection string set a field, the first one wins (docs:
+Docs vs driver 0.3.9: when both a URI and a connection string set a field, the first one wins (docs:
 the last); the INSERT fallback is also capped at 8000 ÷ columns rows per statement.
