@@ -10,8 +10,8 @@ use a product correctly: which parameters exist, which options fit together, and
 
 | Product | Skill | What it does | Status |
 |---|---|---|---|
-| [FastBCP](https://fastbcp-docs.arpe.io) | [`fastbcp`](plugins/fastbcp/skills/fastbcp/SKILL.md) | Builds, explains and troubleshoots FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL and more, or straight from SQL Server backup files (`.bak`, full and differential, encrypted ones included) and Oracle RMAN backup sets (full and incremental) without restoring them, to CSV / Parquet / JSON / Excel, locally or to S3, Azure, GCS, OneLake | Available |
-| [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, DuckDB, and CSV / Parquet / JSON file imports | Available |
+| [FastBCP](https://fastbcp-docs.arpe.io) | [`fastbcp`](plugins/fastbcp/skills/fastbcp/SKILL.md) | Builds, explains and troubleshoots FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL, IBM Db2 and more, or straight from SQL Server backup files (`.bak`, full and differential, encrypted ones included) and Oracle RMAN backup sets (full and incremental) without restoring them, to CSV / Parquet / JSON / Excel, locally or to S3, Azure, GCS, OneLake | Available |
+| [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2, DuckDB, natively or through the bundled arpe.io ADBC drivers, and CSV / Parquet / JSON file imports | Available |
 | [MigratorXpress](https://migratorxpress-docs.arpe.io) | [`migratorxpress`](plugins/migratorxpress/skills/migratorxpress/SKILL.md) | Builds, explains and troubleshoots MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, Oracle / PostgreSQL / SQL Server / Netezza → SQL Server or PostgreSQL | Available |
 | [LakeXpress](https://lakexpress-docs.arpe.io) | [`lakexpress`](plugins/lakexpress/skills/lakexpress/SKILL.md) | Builds, explains and troubleshoots LakeXpress pipelines: credentials file, sync configurations, incremental syncs, resume; Oracle / PostgreSQL / SQL Server / MySQL / MariaDB / SAP HANA / Teradata → Parquet on local disk, S3, GCS, Azure, OneLake → Snowflake, Databricks, Fabric, BigQuery, Redshift, MotherDuck, Glue, DuckLake | Available |
 | [arpe.io ADBC drivers](https://adbc-drivers-docs.arpe.io) | [`arpeio-adbc-drivers`](plugins/arpeio-adbc-drivers/skills/arpeio-adbc-drivers/SKILL.md) | Installs, configures and troubleshoots the ArpeMSSQL, ArpePGSQL, ArpeOracle, ArpeNetezza, ArpeTeradata and ArpeDb2 ADBC drivers: installer, licence, URIs and connection strings, authentication, TLS, Arrow type mappings, bulk ingest, from Python, C, C#, Go, Java, R or Rust | Available |
@@ -73,6 +73,26 @@ cp -r arpeio-skills/plugins/arpeio-adbc-drivers/skills/arpeio-adbc-drivers <your
 For agents without skill support, paste the content of `SKILL.md` as custom instructions. The files in
 `references/` can be attached or pasted when needed.
 
+## Data and privacy
+
+The plugins in this repository contain only Markdown instructions. They ship no code: no scripts,
+binaries, hooks or MCP servers. Nothing runs on your machine when you install or use them.
+
+- **No data is sent anywhere by the plugins.** They have no telemetry and make no network calls.
+- The agent reads the skill files locally and uses them to write commands, credentials files and
+  code for you. You decide whether to run what it produces, against your own databases and storage.
+- A skill may ask the agent to check the installed product version, or to open the public
+  documentation sites (`*-docs.arpe.io`) when your version is newer than the one the skill covers.
+  Any such fetch is made by your agent with its own tools and permissions, and sends no data about you.
+- The `arpeio-adbc-drivers` skill gives the official installer command
+  (`curl -fsSL https://raw.githubusercontent.com/arpe-io/adbc-drivers/main/install.sh | sh …`), which
+  downloads the drivers from GitHub. It runs only if you or your agent run it, under your agent's
+  usual permission prompts.
+- The arpe.io products themselves (FastBCP, FastTransfer, MigratorXpress, LakeXpress, ADBC drivers)
+  are separate software, installed and licensed separately.
+
+arpe.io privacy policy: https://www.arpe.io/privacy
+
 ## Product versions
 
 Each skill states the product version its facts were checked against. Before building a command, the
@@ -81,10 +101,10 @@ and to confirm against the official docs when the installed product is newer.
 
 | Skill | Product version |
 |---|---|
-| `fastbcp` | FastBCP 1.6.8 |
-| `fasttransfer` | FastTransfer 0.18.1 |
+| `fastbcp` | FastBCP 1.7.0 |
+| `fasttransfer` | FastTransfer 1.0.0 |
 | `migratorxpress` | MigratorXpress 0.8.0 |
-| `lakexpress` | LakeXpress 0.6.0 |
+| `lakexpress` | LakeXpress 0.6.8 |
 | `arpeio-adbc-drivers` | ArpeMSSQL 0.8.0, ArpePGSQL 0.5.2, ArpeOracle 0.4.5, ArpeNetezza 0.3.9, ArpeTeradata 0.3.6, ArpeDb2 0.4.0 |
 
 ## Platform support

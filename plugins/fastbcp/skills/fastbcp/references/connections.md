@@ -13,22 +13,28 @@
 | `oraodp` | Oracle (ODP.NET) | |
 | `adbc_oracle` | Oracle via ADBC FastDriver | Parquet only, x64 only |
 | `hana` | SAP HANA | |
-| `hanaexport` | SAP HANA using native `EXPORT` | Shown in the docs' examples only; recommended there for large datasets |
 | `teradata` | Teradata | |
 | `adbc_teradata` (1.4+) | Teradata via ADBC (embedded ArpeTeradata driver); the TLS logon needs no Teradata client software | Parquet only, x64 only; no `--trusted` |
 | `nzsql` | IBM Netezza | |
 | `adbc_netezza` | Netezza / IBM NPS via ADBC (embedded driver, no NZdotNET, works with IBM Cloud NPS) | Parquet only, x64 only |
+| `adbc_db2` (1.7+) | IBM Db2 via ADBC (embedded ArpeDb2 driver, Db2's native protocol, no IBM client software) | Parquet only, x64 only; `--database` required; no `--trusted`. See [IBM Db2](#ibm-db2-adbc_db2-17) |
 | `clickhouse` | ClickHouse | |
-| `odbc` | Any ODBC source (e.g. DB2) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
+| `odbc` | Any ODBC source (e.g. Db2 with IBM's ODBC / CLI driver: for Db2 to Parquet, prefer `adbc_db2`, 1.7+; keep `odbc` for other formats or Db2 for z/OS) | Needs `--dsn` or `--sourceconnectstring`, and the ODBC driver installed |
 | `oledb` | Any OLE DB source | Windows only. Needs `--provider` (e.g. `MSOLEDBSQL`, `NZOLEDB`, `OraOLEDB.Oracle`) |
 | `backup_mssql` (1.5+) | SQL Server full and, since 1.6.7, differential backup files (`.bak`), read without restoring them and without a SQL Server instance (embedded ArpeMSBackup ADBC driver) | Parquet only, x64 only; no database credentials (`--user` / `--password` name the certificate key of an encrypted backup, 1.6.6+). See below |
 | `backup_rman` (1.6.0+) | Oracle RMAN backup sets, full and, since 1.6.8, incremental, read without restoring them and without an Oracle instance (embedded ArpeOraBackup ADBC driver) | Parquet only, x64 only; no credentials. See below |
 
 `msoledbsql`, `nzcopy` and `nzoledb` also appear in the docs (e.g. as `Physical` sources) but not in
-this table; use them only if the user asks.
+this table; use them only if the user asks. `hanaexport` was removed in 1.7 (refused by `--connectiontype` for a
+long time before): use `hana`.
+
+Since 1.7, the values of `--connectiontype` (and of `--parallelmethod`, `--parquetcompression`, `--boolformat`,
+`--loglevel`, `--applicationintent`) are case-insensitive, on the command line and in a YAML `--config` file:
+`--connectiontype MSSQL` is `mssql`. Generate the spelling of the table anyway, as older versions need it.
 
 Embedded drivers (nothing to install): ClickHouse, DuckDB, SQL Server, MySQL, Netezza, Oracle,
-PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb` with its own driver.
+PostgreSQL, SAP HANA, Teradata, and Db2 through `adbc_db2` (1.7+). Any other database goes through `odbc` /
+`oledb` with its own driver.
 
 ### Platform support
 
@@ -43,9 +49,9 @@ PostgreSQL, SAP HANA, Teradata. Any other database goes through `odbc` / `oledb`
 
 | Long | Short | Notes |
 |---|---|---|
-| `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias. With `backup_mssql`: the directory of the backups; with `backup_rman`: the directory of the backup pieces |
-| `--database` | `-I` | Optional (engine dependent). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file names, a pattern or a `;` list; with `backup_rman`: the piece names, paths or patterns, `;` separated, `**` for subdirectories (1.6.8+) |
-| `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it (not with `adbc_teradata`) |
+| `--server` | `-S` | Required unless `--sourceconnectstring` is used. Formats: `host`, `host:port`, `host,port`, `host\instance`, Oracle Easy Connect `host:1521/service`, or an Oracle TNS alias. With `adbc_db2`: `host[:port]`, port `50000` by default. With `backup_mssql`: the directory of the backups; with `backup_rman`: the directory of the backup pieces |
+| `--database` | `-I` | Optional (engine dependent); **required** with `adbc_db2` (the Db2 database name). Not `-d`, which is the CSV delimiter. With `backup_mssql`: the backup file names, a pattern or a `;` list; with `backup_rman`: the piece names, paths or patterns, `;` separated, `**` for subdirectories (1.6.8+) |
+| `--trusted` | `-A` | Windows / Kerberos integrated auth, if the RDBMS supports it (not with `adbc_teradata` or `adbc_db2`) |
 | `--user` | `-U` | |
 | `--password` | `-X` | Masked in FastBCP logs |
 | `--sourceconnectstring` | `-g` | Full connection string, in double quotes. Overrides every other connection parameter. Works with any connection type |
@@ -82,10 +88,16 @@ SQL Server:
 --sourceconnectstring "Server=myserver;Database=mydb;User ID=FastUser;Password=FastPassword;Encrypt=True;TrustServerCertificate=True"
 ```
 
-DB2 through ODBC:
+DB2 through ODBC (for Parquet, prefer [`adbc_db2`](#ibm-db2-adbc_db2-17), 1.7+):
 
 ```
 --connectiontype "odbc" --sourceconnectstring "Driver={IBM DB2 ODBC DRIVER};Database=SAMPLE;Hostname=db2server.company.corp;Port=25010;Protocol=TCPIP;Uid=db2user;Pwd=password;CurrentSchema=DB2ADMIN"
+```
+
+Db2 with `adbc_db2` and TLS (1.7+; Db2's TLS is implicit, on the server's SSL port, often `50001`):
+
+```
+--connectiontype "adbc_db2" --sourceconnectstring "Server=db2server.company.corp;Port=50001;Database=SAMPLE;User Id=db2user;Password=password;SSL Mode=verify-full;SSL Root Cert=/etc/ssl/db2/ca.pem"
 ```
 
 Netezza with the OLE DB provider (Windows):
@@ -96,7 +108,7 @@ Netezza with the OLE DB provider (Windows):
 
 ### ADBC connection strings
 
-With `adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza` and `adbc_teradata`, `--sourceconnectstring` accepts:
+With `adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_teradata` and `adbc_db2` (1.7+), `--sourceconnectstring` accepts:
 
 - native ADO.NET-style `Key=Value;` pairs, translated to driver keys. Keys with no equivalent
   (e.g. `Pooling=false`) are dropped with a warning;
@@ -146,6 +158,54 @@ Per-driver notes:
   --connectiontype adbc_teradata --sourceconnectstring "Server=td-host;Port=1025;User Id=FastUser;Password=FastPassword;SSL Mode=disable"
   ```
 
+## IBM Db2 (`adbc_db2`, 1.7+)
+
+`--connectiontype adbc_db2` reads Db2 through the embedded **ArpeDb2** ADBC driver (ArpeDb2 0.4.0 in 1.7.0), for the
+metadata and the data steps. It speaks Db2's native protocol: **no IBM client software** (Data Server Driver, CLI,
+ODBC) to install, the same command on Windows and Linux. Db2 SQL dialect.
+
+| Db2 platform | `adbc_db2` |
+|---|---|
+| Db2 for LUW (Linux, Unix, Windows) | Main target |
+| Db2 for i | Works for queries; `DBPartition` falls back to `None` |
+| Db2 for z/OS | Not supported yet: use `odbc` with IBM's driver |
+
+- `--server "host[:port]"`, port `50000` by default; `--database` **required** (the Db2 database name);
+  `--user` and `--password`. Or a `--sourceconnectstring` in the ADO.NET spelling (`Server`, `Port`, `Database`,
+  `User Id`, `Password`, …); explicit `adbc.arpedb2.*` keys are passed as is and win.
+- `--trusted` is refused: `-C adbc_db2 does not support trusted (-A) authentication: give -U and -X`. Without
+  `--database`: `-C adbc_db2 needs the database name (-I / --sourcedatabase)`.
+- **TLS** is off by default. Db2's TLS is implicit, on the server's SSL port (often `50001`): give that port and the
+  TLS settings in `--sourceconnectstring` (`SSL Mode=verify-full;SSL Root Cert=<ca.pem>`, see the example above).
+- **Parquet only**, Windows x64 and Linux x64 only (not Linux ARM64), like every ADBC connector. For CSV, JSON,
+  Excel…, use `odbc` with IBM's ODBC / CLI driver.
+- Parallel methods: `None`, `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition`, and `DBPartition` on Db2 for
+  LUW range-partitioned tables (one data partition per thread, see parallelism.md). **Not `Physical`**: use `Ntile`,
+  `RangeId`, `Random` or `DBPartition`.
+- Data types: `DECIMAL(p,s)` keeps its precision and scale; `DECFLOAT` reads as a double unless
+  `adbc.arpedb2.decfloat_as=string`. Full mapping: https://adbc-drivers-docs.arpe.io/drivers/arpedb2/data-types
+- The driver needs the ADBC block of the license file, like the other `adbc_*` (environment.md, "License").
+
+`odbc` with IBM's Db2 ODBC / CLI driver, on a Windows machine whose regional settings use a decimal comma (French,
+German, …): up to 1.6, `DECIMAL` values came out **multiplied by 10^scale**, with no error (`173665.47` →
+`17366547`). Since 1.7, FastBCP adds `Patch2=15` to the connection when it detects IBM's driver on a Db2 server,
+keeping the `Patch2` values given, and logs the resulting list: nothing to change. Other ODBC drivers and
+`adbc_db2` were not affected.
+
+## Db2 and Oracle syntax in `--query` (1.7+)
+
+FastBCP reads `--query` before sending it to the database. Since 1.7 it reads it with the SQL rules of Db2 and of
+Oracle, so queries the database accepts are no longer refused or changed on the way:
+
+| Source | Since 1.7 |
+|---|---|
+| Db2 (`adbc_db2`, and `odbc` when the driver reports a Db2 server) | Special registers in several words (`CURRENT DATE`, `CURRENT TIMESTAMP(6)`, `CURRENT SCHEMA`, …) and labeled durations (`CURRENT DATE - 30 DAYS`, `ORDER_DATE + 1 MONTH`) parse. Up to 1.6 these queries failed to parse |
+| Oracle (`oraodp`, `adbc_oracle`, and `odbc` when the driver reports an Oracle server) | `#` is part of a name (`SELECT SID, SERIAL# FROM V$SESSION` keeps `SERIAL#`); a backslash is an ordinary character (`'C:\temp\'` parses, `LIKE 'C:\temp\f1%'` matches what Oracle matches). The `(+)` outer join, `IGNORE NULLS` and `T@DBLINK` keep working |
+
+**Up to 1.6, an Oracle `--query` with `#` or `\` could return other rows, or none, without an error**: the end of the
+line after `#` was dropped, and `\t` in a string became a tab. After upgrading, check the exports whose `--query`
+holds `#` or `\`.
+
 ## SQL Server backup files (`backup_mssql`, 1.5+)
 
 Reads a table straight from SQL Server **full and differential backups** (`.bak`), without restoring them and without any
@@ -159,7 +219,8 @@ backups much larger than the RAM work.
   [encrypted backups](#encrypted-backups-166); `--sourceconnectstring` only sets driver options. The
   driver is licensed like the other ADBC FastDrivers (see environment.md, "License").
 - Use **1.5.1+** (ArpeMSBackup 0.1.7): 1.5.0 fails on some backups and columnstore tables (see
-  troubleshooting.md).
+  troubleshooting.md). Prefer **1.7.0** (ArpeMSBackup 0.3.1): up to 1.6.8, PAGE-compressed tables with large page
+  dictionaries and typed `xml` columns fail, or read wrong values (below).
 - Backups read: full and copy-only full, uncompressed or compressed with **MS_XPRESS** or **ZSTD**
   (not QAT_DEFLATE), any `BLOCKSIZE` / `MAXTRANSFERSIZE`, SQL Server **2017, 2019, 2022, 2025**
   (Windows or Linux), several data files and filegroups.
@@ -172,6 +233,14 @@ backups much larger than the RAM work.
   `varbinary(max)`, `text`, `ntext`, `image`, row-overflow), `xml`, sparse and persisted computed
   columns, and **clustered columnstore** (archive compression and open delta store included).
   `sql_variant` is exported as text.
+- Since 1.7.0 (ArpeMSBackup 0.3.1): `xml` typed by an XML schema collection is read, its values written as SQL
+  Server returns them (`12.5`, `2003-12-11Z`, `1.0E21`); `xml` text is escaped as SQL Server writes it (a carriage
+  return `&#x0D;`, TAB / LF / CR in attribute values `&#x09;` / `&#x0A;` / `&#x0D;`). PAGE-compressed tables with
+  many distinct values per page, or with values sharing no common prefix (hashes, codes), are read. Up to 1.6.8
+  these failed (`page symbol … out of the dictionary`, `prefix longer than the anchor value`, `corrupt page
+  dictionary`, `BINXML token 0xEA is not supported`), or read the next column wrong, or lost rows. Checked on every
+  table and column of AdventureWorks2025 and AdventureWorksDW2025, as is, ROW and PAGE compressed, from
+  uncompressed, MS_XPRESS and ZSTD backups: identical to SQL Server.
 - **Refused**: tables with a `json` or `vector(n, float16)` column (SQL Server 2025, since 1.6.5): list the
   other columns in `--query`, or use `adbc_mssql`. Before 1.6.6, backups of **TDE** databases and
   **encrypted backups** (`WITH ENCRYPTION`) too. A damaged or truncated backup stops with an error, and so does

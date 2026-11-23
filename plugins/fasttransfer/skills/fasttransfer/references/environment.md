@@ -4,8 +4,9 @@
 
 FastTransfer is a self-contained .NET 10 binary: `FastTransfer.exe` on Windows, `FastTransfer` on Linux.
 It embeds its own .NET runtime and libraries, so updating the .NET runtime on the server does not patch
-it: replace the binary (e.g. 0.18.1 for the October 2026 .NET security fixes).
-Download it after a trial request at https://arpe.io/get-trial?product=FastTransfer.
+it: replace the binary (e.g. 0.18.1 or later for the October 2026 .NET security fixes).
+Download it after a trial request at https://arpe.io/get-trial?product=FastTransfer. The zip also holds a
+`README.md` describing the options of that exact version.
 
 ```powershell
 Expand-Archive -Path .\FastTransfer.zip -DestinationPath .\FastTransfer
@@ -25,22 +26,37 @@ Supported OS:
   and others.
 - **macOS**: use Docker.
 
+| Sources and targets | Windows x64 | Linux x64 | Linux ARM64 |
+|---|---|---|---|
+| SQL Server, PostgreSQL, Oracle, MySQL, Netezza, ClickHouse, DuckDB; `odbc` source | ✓ | ✓ | ✓ |
+| SAP HANA, Teradata | ✓ | ✓ | – |
+| `oledb` source (and `msoledbsql`, `nzoledb`) | ✓ | – | – |
+| ADBC (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_db2`, `adbc_teradata`), 1.0+ | ✓ | ✓ | – |
+
 Embedded drivers: ClickHouse, DuckDB, SQL Server, MySQL, Netezza, Oracle, PostgreSQL, SAP HANA,
-Teradata. Others need an ODBC or OLE DB driver installed.
+Teradata, and since 1.0 the Arpe ADBC drivers (ArpeMSSQL, ArpePGSQL, ArpeOracle, ArpeNetezza, ArpeDb2,
+ArpeTeradata). Others need an ODBC or OLE DB driver installed.
 
 ## License
 
-- Default lookup: `FastTransfer.lic` next to the executable.
+- Default lookup: `FastTransfer.lic` in the working directory, then next to the executable (0.18.2+;
+  before, pass `--license` with the full path).
 - `--license` accepts a file path, a UNC path, an HTTP(S) URL, or the license content:
   ```bash
   ./FastTransfer ... --license "/opt/fasttransfer/FastTransfer.lic"
   ./FastTransfer ... --license "$FT_LICENSE"          # content held in a shell variable
   ```
 - **A license file is always required, including for the free trial** (the trial request at
-  https://arpe.io/get-trial?product=FastTransfer sends one). There is no license-free trial mode. The
-  only way to run without `--license` is a file named exactly `FastTransfer.lic` in the executable's
+  https://arpe.io/get-trial?product=FastTransfer sends one, valid 30 days). There is no license-free
+  trial mode: only `--help` and `--version` run without a license. The only way to run without
+  `--license` is a file named exactly `FastTransfer.lic` in the working directory or in the executable's
   directory.
-- License errors: check the file name and location (or the `--license` value) and the expiry date, then
+- The file can hold several blocks, in any order: `FASTTRANSFER`, and other products' blocks
+  (MigratorXpress, ADBC drivers…). **`adbc_*` runs (1.0+) also need the ARPE ADBC DRIVER block**: put it
+  in the same file, or give it to the drivers with `License=<file>` in the connection string or the
+  `ARPEIO_ADBC_LICENCE_FILE` environment variable (see connections.md).
+- License errors: exit code 99 = no or invalid license (or no ADBC block for an `adbc_*` run), 100 =
+  license expired. Check the file name and location (or the `--license` value) and the expiry date, then
   contact arpe.io.
 
 ## Docker
@@ -83,8 +99,10 @@ Integrations: Airflow (DockerOperator), Kestra (Docker Run), the `pg_fasttransfe
 | Variable | Applies to | Default | Purpose |
 |---|---|---|---|
 | `FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES` | `msbulk`, `orabulk` | `60` | Timeout of a bulk load step, in minutes. Raise it for very large loads (0.17+) |
+| `FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES` | `adbc_*` (1.0+) | no limit | When set, becomes the drivers' timeout on both ends: the longest wait on a silent server, and for PostgreSQL and Netezza the longest a statement may run. A timeout already in the connection string is kept |
 | `FASTTRANSFER_SORTEDINPUT` | `msbulk` | `false` | `true` tells SQL Server bulk copy the input is sorted on the clustered index (partitioned target: on the partition column) (0.17+). Since 0.18 also forces the hint that `DataDriven` / `DBPartition` / `Timepartition` skip on rowstore clustered targets (see parallelism.md) |
 | `FASTTRANSFER_DATEFORMAT` | any source, `Timepartition` only | `yyyy-MM-dd` | Format of the date bounds sent to the source: `yyyy-MM-dd` or `yyyyMMdd`; any other value stops FastTransfer (0.18+) |
+| `ARPEIO_ADBC_LICENCE_FILE` | `adbc_*` (1.0+) | – | Licence file handed to the ADBC drivers; takes precedence over the ADBC block of `--license` |
 
 ```bash
 export FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES=120
@@ -110,6 +128,8 @@ $env:FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES = "120"
 - `MinimumLevel` in the settings file sets the level; `--loglevel` overrides it. `Fatal` is only available
   through the settings file.
 - Passwords are masked in all sinks.
+- With `adbc_*` (1.0+), the drivers' warnings (licence about to expire, password sent without TLS…) go to
+  the same sinks, labelled with the connection type (`WARN adbc_db2 driver: …`).
 - Set `--runid` from the scheduler to correlate runs.
 
 Full settings samples: https://fasttransfer-docs.arpe.io/latest/documentation/logging/examples
