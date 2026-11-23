@@ -9,6 +9,7 @@
   "homepage": "https://fasttransfer-docs.arpe.io",
   "repository": "https://github.com/arpe-io/arpeio-skills",
   "license": "MIT",
+  "termsOfServiceUrl": "https://github.com/arpe-io/arpeio-skills/blob/main/LICENSE",
   "icon": "./assets/icon.png",
   "keywords": ["fasttransfer", "transfer", "migration", "bulk", "etl", "csv", "parquet", "adbc", "db2"]
 }
