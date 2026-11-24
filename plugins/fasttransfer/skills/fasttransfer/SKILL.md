@@ -25,9 +25,9 @@ Facts below reflect FastTransfer **1.1.0**. Detailed references (load only what 
 | Pitfalls, known limitations, version notes | [references/troubleshooting.md](references/troubleshooting.md) |
 
 If something is not covered there, read the official docs instead of guessing:
-https://fasttransfer-docs.arpe.io/latest/llms-full.txt. When `latest` still describes 1.0, the 1.1
-additions (`--loadmode Create`, `--inferdatatype`, `backup_*`) are in the 1.1 pages of that site
-(https://fasttransfer-docs.arpe.io/1.1/) and in the `README.md` shipped in the FastTransfer zip.
+https://fasttransfer-docs.arpe.io/latest/llms-full.txt. When that site still describes 1.0, the
+reference for the 1.1 additions (`--loadmode Create`, `--inferdatatype`, `backup_*`) is the `README.md`
+shipped in the FastTransfer zip.
 
 ## Check the installed version
 
