@@ -11,7 +11,7 @@ use a product correctly: which parameters exist, which options fit together, and
 | Product | Skill | What it does | Status |
 |---|---|---|---|
 | [FastBCP](https://fastbcp-docs.arpe.io) | [`fastbcp`](plugins/fastbcp/skills/fastbcp/SKILL.md) | Builds, explains and troubleshoots FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL, IBM Db2 and more, or straight from SQL Server backup files (`.bak`, full and differential, encrypted ones included) and Oracle RMAN backup sets (full and incremental) without restoring them, to CSV / Parquet / JSON / Excel, locally or to S3, Azure, GCS, OneLake | Available |
-| [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2, DuckDB, natively or through the bundled arpe.io ADBC drivers, and CSV / Parquet / JSON file imports | Available |
+| [FastTransfer](https://fasttransfer-docs.arpe.io) | [`fasttransfer`](plugins/fasttransfer/skills/fasttransfer/SKILL.md) | Builds, explains and troubleshoots FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2, DuckDB, natively or through the bundled arpe.io ADBC drivers, SQL Server and Oracle RMAN backups read without restoring them, CSV / Parquet / JSON file imports, and target table creation | Available |
 | [MigratorXpress](https://migratorxpress-docs.arpe.io) | [`migratorxpress`](plugins/migratorxpress/skills/migratorxpress/SKILL.md) | Builds, explains and troubleshoots MigratorXpress migrations: credentials file, task lists, resume, schema and table selection, Oracle / PostgreSQL / SQL Server / Netezza → SQL Server or PostgreSQL | Available |
 | [LakeXpress](https://lakexpress-docs.arpe.io) | [`lakexpress`](plugins/lakexpress/skills/lakexpress/SKILL.md) | Builds, explains and troubleshoots LakeXpress pipelines: credentials file, sync configurations, incremental syncs, resume; Oracle / PostgreSQL / SQL Server / MySQL / MariaDB / SAP HANA / Teradata → Parquet on local disk, S3, GCS, Azure, OneLake → Snowflake, Databricks, Fabric, BigQuery, Redshift, MotherDuck, Glue, DuckLake | Available |
 | [arpe.io ADBC drivers](https://adbc-drivers-docs.arpe.io) | [`arpeio-adbc-drivers`](plugins/arpeio-adbc-drivers/skills/arpeio-adbc-drivers/SKILL.md) | Installs, configures and troubleshoots the ArpeMSSQL, ArpePGSQL, ArpeOracle, ArpeNetezza, ArpeTeradata and ArpeDb2 ADBC drivers: installer, licence, URIs and connection strings, authentication, TLS, Arrow type mappings, bulk ingest, from Python, C, C#, Go, Java, R or Rust | Available |
@@ -102,7 +102,7 @@ and to confirm against the official docs when the installed product is newer.
 | Skill | Product version |
 |---|---|
 | `fastbcp` | FastBCP 1.7.0 |
-| `fasttransfer` | FastTransfer 1.0.0 |
+| `fasttransfer` | FastTransfer 1.1.0 |
 | `migratorxpress` | MigratorXpress 0.8.0 |
 | `lakexpress` | LakeXpress 0.6.8 |
 | `arpeio-adbc-drivers` | ArpeMSSQL 0.8.0, ArpePGSQL 0.5.2, ArpeOracle 0.4.5, ArpeNetezza 0.3.9, ArpeTeradata 0.3.6, ArpeDb2 0.4.0 |

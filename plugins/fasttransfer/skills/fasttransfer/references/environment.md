@@ -19,6 +19,15 @@ chmod +x FastTransfer
 ./FastTransfer --version
 ```
 
+A real-time antivirus may scan the whole executable (about 250 MB: it holds its runtime and its
+database drivers) each time it starts. On a Windows machine this added 1.2 to 1.5 seconds to every
+launch, `--version` included, against about 0.1 second with real-time scanning off; it matters mostly
+when many short transfers are chained. To avoid it, exclude from real-time scanning the folder of the
+executable, and the folder its files are extracted to on the first launch: `%TEMP%\.net\FastTransfer`
+on Windows, `$HOME/.net/FastTransfer` on Linux, or the folder set in `DOTNET_BUNDLE_EXTRACT_BASE_DIR`.
+The first launch after an installation or an upgrade extracts about 300 files (240 MB) there, and can
+take from a few seconds to a few minutes when an antivirus scans each of them.
+
 Supported OS:
 
 - **Windows x64**: 10/11, Server 2012–2025.
@@ -32,10 +41,12 @@ Supported OS:
 | SAP HANA, Teradata | ✓ | ✓ | – |
 | `oledb` source (and `msoledbsql`, `nzoledb`) | ✓ | – | – |
 | ADBC (`adbc_mssql`, `adbc_pgsql`, `adbc_oracle`, `adbc_netezza`, `adbc_db2`, `adbc_teradata`), 1.0+ | ✓ | ✓ | – |
+| Backup sources (`backup_mssql`, `backup_rman`), to an `adbc_*` target, 1.1+ | ✓ | ✓ | – |
 
 Embedded drivers: ClickHouse, DuckDB, SQL Server, MySQL, Netezza, Oracle, PostgreSQL, SAP HANA,
 Teradata, and since 1.0 the Arpe ADBC drivers (ArpeMSSQL, ArpePGSQL, ArpeOracle, ArpeNetezza, ArpeDb2,
-ArpeTeradata). Others need an ODBC or OLE DB driver installed.
+ArpeTeradata), and since 1.1 the backup drivers (ArpeMSBackup, ArpeOraBackup). Others need an ODBC or
+OLE DB driver installed.
 
 ## License
 
@@ -54,7 +65,8 @@ ArpeTeradata). Others need an ODBC or OLE DB driver installed.
 - The file can hold several blocks, in any order: `FASTTRANSFER`, and other products' blocks
   (MigratorXpress, ADBC drivers…). **`adbc_*` runs (1.0+) also need the ARPE ADBC DRIVER block**: put it
   in the same file, or give it to the drivers with `License=<file>` in the connection string or the
-  `ARPEIO_ADBC_LICENCE_FILE` environment variable (see connections.md).
+  `ARPEIO_ADBC_LICENCE_FILE` environment variable (see connections.md). A backup source (1.1+) loads
+  into an `adbc_*` target, so the same applies.
 - License errors: exit code 99 = no or invalid license (or no ADBC block for an `adbc_*` run), 100 =
   license expired. Check the file name and location (or the `--license` value) and the expiry date, then
   contact arpe.io.
@@ -103,6 +115,17 @@ Integrations: Airflow (DockerOperator), Kestra (Docker Run), the `pg_fasttransfe
 | `FASTTRANSFER_SORTEDINPUT` | `msbulk` | `false` | `true` tells SQL Server bulk copy the input is sorted on the clustered index (partitioned target: on the partition column) (0.17+). Since 0.18 also forces the hint that `DataDriven` / `DBPartition` / `Timepartition` skip on rowstore clustered targets (see parallelism.md) |
 | `FASTTRANSFER_DATEFORMAT` | any source, `Timepartition` only | `yyyy-MM-dd` | Format of the date bounds sent to the source: `yyyy-MM-dd` or `yyyyMMdd`; any other value stops FastTransfer (0.18+) |
 | `ARPEIO_ADBC_LICENCE_FILE` | `adbc_*` (1.0+) | – | Licence file handed to the ADBC drivers; takes precedence over the ADBC block of `--license` |
+| `FASTTRANSFER_ADBC_SSLMODE` | `adbc_pgsql`, `adbc_netezza`, source and target (1.1+) | driver default | TLS mode of the connections: `disable`, `prefer`, `require`, `verify-ca` or `verify-full`; any other value stops the run before it connects. An `sslmode` already in the connection string is kept |
+| `FASTTRANSFER_INFER_DEFAULT_STRING_MAXSIZE` | `--loadmode Create` (1.1+) | `256` | Length of a text column with no declared length, in `fast` and `allvarchar`: from 1 to the largest bounded text length of the target, or `max` for the unbounded type |
+| `FASTTRANSFER_INFER_STRING_MARGIN` | `--loadmode Create --inferdatatype best` (1.1+) | `0` | Margin added to a measured text length: a number of characters (`50`) or a factor from `2x` to `10x` |
+| `FASTTRANSFER_INFER_SAMPLE_PERCENT` | `--loadmode Create --inferdatatype best` (1.1+) | `100` | Percentage of the source read by the profiling scan |
+| `FASTTRANSFER_BACKUP_RESTORE_MODE` | `backup_mssql`, `backup_rman` (1.1+) | `strict` | `best_effort` reads the newest usable version instead of stopping on a backup that cannot be used |
+| `FASTTRANSFER_BACKUP_RESTORE_POINT` | `backup_mssql`, `backup_rman` (1.1+) | `latest` | `full` reads the last full (or level 0) backup and ignores the differential and incremental ones |
+| `FASTTRANSFER_INDEX_DIR` | `backup_mssql`, `backup_rman` (1.1+) | user cache directory | Directory of the backup indexes (a fully qualified path) |
+
+Details: parameters.md for the `FASTTRANSFER_INFER_*` variables, connections.md for TLS and the backup
+variables. An invalid value of one of these 1.1 variables stops the run when it applies (the
+`FASTTRANSFER_INFER_*` ones are ignored, with a warning, without `--loadmode Create`).
 
 ```bash
 export FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES=120
