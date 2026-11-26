@@ -101,7 +101,7 @@ and to confirm against the official docs when the installed product is newer.
 
 | Skill | Product version |
 |---|---|
-| `fastbcp` | FastBCP 1.7.0 |
+| `fastbcp` | FastBCP 1.7.1 |
 | `fasttransfer` | FastTransfer 1.1.1 |
 | `migratorxpress` | MigratorXpress 0.8.0 |
 | `lakexpress` | LakeXpress 0.6.8 |

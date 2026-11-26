@@ -11,7 +11,7 @@ query) → one output file, or one file per parallel chunk / partition.
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastBCP **1.7.0**. Detailed references (load only what you need):
+Facts below reflect FastBCP **1.7.1**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -31,7 +31,10 @@ https://fastbcp-docs.arpe.io/latest/llms-full.txt (whole documentation in one fi
 When you can run commands, run `./FastBCP --version` (Windows: `.\FastBCP.exe --version`) before
 building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected error).
 
-- **1.7** → use this skill as is.
+- **1.7** → use this skill as is. 1.7.1 changes nothing in FastBCP's own code; it bundles newer ADBC drivers
+  (troubleshooting.md, version notes). On 1.7.0: `adbc_db2` refuses a database with a single-byte code page
+  (ISO-8859-15, 850, windows-1252), `adbc_oracle` fails with ORA-12650 against a server that allows only AES-128 /
+  AES-192 or SHA-384 / SHA-512, and `backup_mssql` indexes a compressed backup in two passes. Recommend **1.7.1**.
 - **1.6** → no `adbc_db2` (Db2 goes through `odbc` and IBM's driver); write values in their documented case; a
   wrong value in a YAML `--config` is silently ignored. Recommend **1.7.0** for an Oracle `--query` holding `#` or
   `\` (silently altered), IBM's Db2 ODBC driver on a Windows with a decimal comma (`DECIMAL` × 10^scale), or a

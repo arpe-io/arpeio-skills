@@ -1,6 +1,6 @@
 {
   "name": "fastbcp",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Build, explain and troubleshoot FastBCP commands: parallel bulk export from SQL Server, PostgreSQL, Oracle, MySQL, IBM Db2 and more, or straight from SQL Server backup files (.bak, full and differential, encrypted ones included) and Oracle RMAN backup sets (full and incremental) without restoring them, to CSV/Parquet/JSON/Excel, locally or to S3, Azure, GCS and OneLake.",
   "author": {
     "name": "arpe.io",
