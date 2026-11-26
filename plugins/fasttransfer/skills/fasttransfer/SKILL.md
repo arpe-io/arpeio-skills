@@ -1,22 +1,23 @@
 ---
 name: fasttransfer
-description: Build, fix, explain or run FastTransfer command lines. FastTransfer (by arpe.io) is a high-performance bulk transfer tool that copies data in parallel between databases (SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2, DuckDB, ODBC/OLE DB sources), natively or through the bundled arpe.io ADBC drivers, and imports CSV, Parquet and JSON files into a database through DuckDB. Use when the user mentions FastTransfer, or wants to copy / migrate / load a table or query from one database to another, bulk load files into a database, choose a parallel transfer method, or troubleshoot a FastTransfer run.
+description: Build, fix, explain or run FastTransfer command lines. FastTransfer (by arpe.io) is a high-performance bulk transfer tool that copies data in parallel between databases (SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2, DuckDB, ODBC/OLE DB sources), natively or through the bundled arpe.io ADBC drivers, loads tables straight from SQL Server backup files (.bak) and Oracle RMAN backup sets without restoring them, imports CSV, Parquet and JSON files into a database through DuckDB, and can create the target table. Use when the user mentions FastTransfer, or wants to copy / migrate / load a table or query from one database to another, bulk load files into a database, choose a parallel transfer method, or troubleshoot a FastTransfer run.
 ---
 
 # FastTransfer
 
-FastTransfer reads a table or query from a **source** and bulk loads it into an **existing table** on a
-**target**, optionally in parallel. One run = one source (table, query or files) → one target table.
+FastTransfer reads a table or query from a **source** and bulk loads it into a **table** on a
+**target**, optionally in parallel. The table exists already, or FastTransfer creates it
+(`--loadmode Create`, 1.1+). One run = one source (table, query, files or backup) → one target table.
 
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastTransfer **1.0.0**. Detailed references (load only what you need):
+Facts below reflect FastTransfer **1.1.1**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
-| Source and target connection types, ADBC (`adbc_*`), server formats, auth, connection strings | [references/connections.md](references/connections.md) |
-| Every CLI flag with defaults and allowed values | [references/parameters.md](references/parameters.md) |
+| Source and target connection types, ADBC (`adbc_*`), backup sources (`backup_*`), server formats, auth, connection strings | [references/connections.md](references/connections.md) |
+| Every CLI flag with defaults and allowed values; creating the target table (`--loadmode Create`, `--inferdatatype`) | [references/parameters.md](references/parameters.md) |
 | Parallel methods, distribute key, degree | [references/parallelism.md](references/parallelism.md) |
 | Importing CSV, Parquet, JSON files (DuckDB `read_*`) | [references/files.md](references/files.md) |
 | Install, license, Docker, env vars, logging | [references/environment.md](references/environment.md) |
@@ -24,8 +25,9 @@ Facts below reflect FastTransfer **1.0.0**. Detailed references (load only what 
 | Pitfalls, known limitations, version notes | [references/troubleshooting.md](references/troubleshooting.md) |
 
 If something is not covered there, read the official docs instead of guessing:
-https://fasttransfer-docs.arpe.io/latest/llms-full.txt. When that site still describes 0.18, the
-reference for the 1.0 additions (`adbc_*`, `Physical`) is the `README.md` shipped in the FastTransfer zip.
+https://fasttransfer-docs.arpe.io/latest/llms-full.txt. When that site still describes 1.0, the
+reference for the 1.1 additions (`--loadmode Create`, `--inferdatatype`, `backup_*`) is the `README.md`
+shipped in the FastTransfer zip.
 
 ## Check the installed version
 
@@ -33,11 +35,21 @@ When you can run commands, run `./FastTransfer --version` (Windows: `.\FastTrans
 before building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected
 error).
 
-- **1.0** → use this skill as is.
-- **0.18** → no `adbc_*` types (Db2 goes through `odbc`) and no `Physical`: write the engine name
-  instead (`Ctid`, `Rowid`, `Physloc`, `NZDataSlice`, see parallelism.md). Don't use `--useworktables`
+- **1.1** → use this skill as is. 1.1.1 changes no flag; it bundles newer drivers (troubleshooting.md,
+  version notes). On 1.1.0: `adbc_db2` refuses a database with a single-byte code page (CCSID 923, 850,
+  1252, 5348), and `backup_mssql` has no `ARPEMSBACKUP_DIRECT_IO` / `ARPEMSBACKUP_SINGLE_PASS`.
+  Recommend 1.1.1.
+- **1.0** → no `--loadmode Create` and no `--inferdatatype`: the target table must exist, and
+  `--loadmode Replace` behaves like `Append` there. No `backup_mssql` / `backup_rman` sources. No
+  `FASTTRANSFER_ADBC_SSLMODE`: put the driver's `sslmode` in the connection string. With the native SQL
+  Server types write a port as `host,port` (`host:port` is accepted from 1.1). A `--query` holding
+  `QUALIFY`, a named `WINDOW` or `CONNECT BY` loses that clause when a parallel method adds its
+  predicate, and `Ntile` on an Oracle or MySQL source fails with a query and splits the rows wrongly
+  with a table (troubleshooting.md). Recommend 1.1.
+- **0.18** → as 1.0, and no `adbc_*` types (Db2 goes through `odbc`) and no `Physical`: write the engine
+  name instead (`Ctid`, `Rowid`, `Physloc`, `NZDataSlice`, see parallelism.md). Don't use `--useworktables`
   with `msbulk` / `pgcopy`, and avoid `Ntile` / `DataDriven` on a date or timestamp key or on a key
-  holding NULLs: both lose rows without an error there (troubleshooting.md). Recommend 1.0.
+  holding NULLs: both lose rows without an error there (troubleshooting.md). Recommend 1.1.
   Before 0.18.2, always pass `--license` with the full path of the file.
 - **0.17** → as 0.18, and `DBPartition`, `Timepartition` and `FASTTRANSFER_DATEFORMAT` don't exist yet:
   use `DataDriven` (e.g. on `YEAR(col)` or a `$PARTITION` function) or `Ntile` instead.
@@ -52,12 +64,17 @@ error).
    (`--sourcetrusted`, `--sourceuser`/`--sourcepassword`, or `--sourceconnectstring`).
    For files: `--sourceconnectiontype duckdbstream --sourceserver ":memory:"` + a `read_csv` /
    `read_parquet` / `read_json` query (see files.md).
+   For a SQL Server `.bak` or an Oracle RMAN backup (1.1+): `backup_mssql` / `backup_rman`,
+   `--sourceserver` = the directory of the backup files, `--sourcedatabase` = their names or patterns
+   (`;` separated), no database credentials, and an `adbc_*` target (see connections.md).
 2. **What to read** – `--sourceschema` + `--sourcetable`, or `--query` / `--fileinput`. If both a table
    and a query are given, the query is used (keep schema/table when the parallel method needs them).
 3. **Target** – engine → `--targetconnectiontype` (table below); `--targetserver`,
    `--targetdatabase`, auth; **`--targetschema` + `--targettable` are mandatory**.
-4. **Load behaviour** – `--loadmode Append` (default) or `Truncate`; `--mapmethod Position` (default)
-   or `Name`; optional `--batchsize`.
+4. **Load behaviour** – `--loadmode Append` (default), `Truncate`, or `Create` (1.1+: creates the target
+   table from the source when it is missing, truncates it when it exists; `--inferdatatype` chooses how
+   the column types are derived, see parameters.md); `--mapmethod Position` (default) or `Name`;
+   optional `--batchsize`.
 5. **Parallelism** – only for large volumes (docs: more than about 1M cells). Pick the method below.
 6. **Ops** – `--runid`, `--loglevel`, `--nobanner` for scripts, and the license: a license file is
    required for every run, **including the free trial**. Leave `--license` out only when the file is
@@ -82,10 +99,12 @@ error).
 | SAP HANA | `hana` | `hanabulk` | – |
 | DuckDB file | `duckdb` | `duckdb` | – |
 | Files (CSV, Parquet, JSON) | `duckdbstream` | – | – |
+| SQL Server backup files (`.bak`) (1.1+) | `backup_mssql` | – | target must be `adbc_*` |
+| Oracle RMAN backup sets (1.1+) | `backup_rman` | – | target must be `adbc_*` |
 
 There is no ODBC or OLE DB target. Other sources: connections.md.
 
-**ADBC or native?** The `adbc_*` types use the Arpe ADBC drivers bundled in FastTransfer 1.0 and work
+**ADBC or native?** The `adbc_*` types use the Arpe ADBC drivers bundled since FastTransfer 1.0 and work
 **only as a pair**: `adbc_*` on the source **and** on the target (any two of the six). Take the first
 rule that applies:
 
@@ -93,7 +112,7 @@ rule that applies:
    limitation of that pair if there is one).
 2. Db2 is one end and the other end is one of the six ADBC engines: `adbc_*` on both ends.
 3. Both ends are ADBC engines and the native pair has an entry in troubleshooting.md, "Known
-   limitations in 1.0": when the user's table is known to hit it (e.g. the column types named there),
+   limitations in 1.1": when the user's table is known to hit it (e.g. the column types named there),
    write the `adbc_*` pair and say why; when unknown, write the native command and mention the
    limitation and the `adbc_*` alternative in one sentence. `adbc_*` needs the ADBC driver block in
    the license.
@@ -101,7 +120,8 @@ rule that applies:
 
 Consequences of the pairing: Db2 to a native-only target (MySQL…) goes through an `odbc` source, nothing
 loads into Db2 from a native-only source, and file imports (`duckdbstream`) always use a native target
-(so not Db2).
+(so not Db2). A backup source (`backup_mssql`, `backup_rman`, 1.1+) is the one non-`adbc_*` source an
+`adbc_*` target accepts, and it loads into nothing else.
 
 ## Choosing a parallel method
 
@@ -111,13 +131,15 @@ loads into Db2 from a native-only source, and file imports (`duckdbstream`) alwa
 | Natively partitioned table, partitions of similar size (SQL Server, PostgreSQL, Oracle, MySQL, Teradata; Db2 for LUW range partitioning with `adbc_db2`, 1.0+) (0.18+) | `DBPartition` | `--sourceschema`, `--sourcetable`; no `--query` |
 | Date column, one stream per year / month / day / ISO week (0.18+) | `Timepartition` | `--distributekeycolumn "(col,year,month)"` |
 | PostgreSQL, Oracle or Netezza source; SQL Server source on **read-only** data (1.0+) | `Physical` | `--sourceschema`, `--sourcetable` (not needed on Netezza) |
+| SQL Server or Oracle RMAN backup (`backup_*`, 1.1+), any size worth splitting | `Physical` (resolved to `Pages`); only `None` and `Physical` are accepted | – |
 | Any source, sortable key (numeric, date, string) | `Ntile` | `--distributekeycolumn` |
 | Any source, numeric key without gaps (identity) | `RangeId` | `--distributekeycolumn` |
 | Any source, few distinct values, an expression, or one chunk per file | `DataDriven` (+ optional `--datadrivenquery`) | `--distributekeycolumn` |
 | Any source, numeric key, nothing better | `Random` | `--distributekeycolumn` (numeric) |
 
 `Physical` picks the engine strategy from the source connection type (Ctid, Rowid, Physloc,
-NZDataSlice). Those four names are **deprecated** in 1.0 (warning in the log, removed in 2.0): write
+NZDataSlice; Pages for a backup source). The first four names are **deprecated** since 1.0 (warning in
+the log, removed in 2.0): write
 `Physical`, except on 0.18 and older, and for an `odbc` source to SQL Server (`Physical` refuses `odbc`:
 keep `Physloc`). Then set `--degree` (default `-4` = cores/4; `0` = all cores; `N>0` = N threads;
 `-N` = cores/N).
@@ -129,8 +151,19 @@ keep `Physloc`). Then set `--degree` (default `-4` = cores/4; `0` = all cores; `
   `--sourceconnectstring` / `--targetconnectstring` (not `…connectionstring`), `--degree` (not
   `--paralleldegree`), `--distributekeycolumn` (lowercase; camelCase is a legacy alias), `--fileinput`,
   `--sourcedsn`. Use `--parallelmethod` (`--method` is an accepted alias).
-- **The target table must already exist** with a compatible structure. FastTransfer never creates it.
-  If unsure, tell the user to create it first.
+- **The target table must already exist** with a compatible structure, unless `--loadmode Create` is
+  used (1.1+). `Create` needs the target schema to exist, creates a table with the source column names,
+  every column nullable, no key, index or constraint, and **truncates the table when it already
+  exists**. Before 1.1 FastTransfer never creates a table: tell the user to create it first.
+- **`Create` from SQL Server to SQL Server**: with `msbulk`, the load fails when the two databases'
+  collations have different locales (the created text columns take the target's collation). When they
+  may differ, write `adbc_mssql` on both ends (troubleshooting.md, "Creating the target table").
+- **Never generate `--loadmode Replace`.** Since 1.1 it is an alias of `Create` (it creates the target,
+  or **truncates** it); up to 1.0 it behaved like `Append`. Write `Append`, `Truncate` or `Create`, and
+  warn a user whose scripts pass `Replace` before they upgrade.
+- `--inferdatatype` (`fast` by default, `allvarchar`, `best`) only applies with `--loadmode Create`;
+  with another load mode it is ignored with a warning. `best` is for an Oracle source and for files; it
+  gives the same types as `fast` elsewhere (parameters.md).
 - Column mapping is by **position** unless `--mapmethod Name` is set. Use `Name` when the source column
   order differs from the target, and for file imports.
 - Methods `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition` require `--distributekeycolumn`; FastTransfer stops
@@ -139,15 +172,31 @@ keep `Physloc`). Then set `--degree` (default `-4` = cores/4; `0` = all cores; `
   `--sourcetable`; a `--query` can be added, to filter that table only. Netezza needs neither.
 - `Physical` works with PostgreSQL (`pgsql`, `pgcopy`, `adbc_pgsql`), Oracle (`oraodp`, `adbc_oracle`),
   SQL Server (`mssql`, `msoledbsql`, `adbc_mssql`; only on data that is not being written) and Netezza
-  (`nzsql`, `nzbulk`, `nzoledb`, `adbc_netezza`) sources. Any other source is refused: use a key-based method.
+  (`nzsql`, `nzbulk`, `nzoledb`, `adbc_netezza`) sources, and with the backup sources (1.1+). Any other
+  source is refused: use a key-based method.
+- `Physical` on an Oracle source needs `SELECT_CATALOG_ROLE` for the source user; without it the run
+  fails **after** truncating the target. When the role is unknown, say so, or use a key-based method.
 - `DBPartition` requires `--sourceschema` + `--sourcetable`; `--query` / `--fileinput` are not allowed. On a
   non-partitioned table or an unsupported source it falls back to `None` with a warning.
 - **`adbc_*`**: never mix with a native type (refused before anything runs); Windows x64 and Linux x64
   only (not Linux ARM64); write `--targetschema` / `--targettable` in the exact stored case (`ORDERS` on
   Oracle, Db2 and Teradata, `orders` on PostgreSQL, unless the table was created with quoted names); no
   `--useworktables`; `--batchsize` has no effect.
-- `--loadmode Truncate` empties the target table first. Confirm with the user before suggesting it on a
-  table that may hold data they want to keep.
+- **Backup sources** (`backup_mssql`, `backup_rman`, 1.1+): `adbc_*` target only (another target is
+  refused before anything runs); Windows x64 and Linux x64 only; `--parallelmethod None` or `Physical`
+  only. The source is `--sourceschema` + `--sourcetable`, or a `--query` of the form
+  `SELECT * | col [, col...] FROM [schema.]table` (`TOP n` too with `backup_mssql`): no `WHERE`, no
+  join. `--sourceuser` / `--sourcepassword` are not database credentials: they name the certificate
+  key file of an encrypted SQL Server backup and its password. Give the full backup with its
+  differentials and every stripe (`backup_mssql`), or the level 0 with its incrementals
+  (`backup_rman`): the latest version the files hold is read. Before proposing
+  `FASTTRANSFER_BACKUP_RESTORE_MODE=best_effort` or `FASTTRANSFER_BACKUP_RESTORE_POINT=full`, say that
+  they can read an older version of the table (connections.md).
+- SQL Server `--sourceserver` / `--targetserver`: `host`, `host:port` (1.1+), `host,port`,
+  `host\INSTANCE` or `host\INSTANCE,port`. Never `tcp:host` nor `host\INSTANCE:port`: 1.1 refuses them
+  before any connection.
+- `--loadmode Truncate` empties the target table first, and so does `Create` when the table exists.
+  Confirm with the user before suggesting either on a table that may hold data they want to keep.
 - `--fileinput` points to a file containing the SQL query; the file must exist.
 - Quote values with spaces, backslashes, `$`, `&`, `|`. Inside `--query`, double a `"` to escape it
   (`"select * from ""tpch_10"".orders"`). In PowerShell escape `$` with a backtick (`` "`$PARTITION.PF(col)" ``).

@@ -4,6 +4,10 @@ FastTransfer splits the source read into chunks. It runs one source query per ch
 `WHERE` clause, and bulk loads the chunks into the target table in parallel. Parallelism is worth it only
 for large volumes (the docs say more than about 1M cells).
 
+Since 1.1, a `--query` read with `Ntile`, `Random`, `RangeId`, `DataDriven` or a physical method keeps
+every clause it holds (`QUALIFY`, a named `WINDOW`, `CONNECT BY`) when the method adds its predicate.
+1.0 and older lost such a clause (see troubleshooting.md).
+
 ## Parameters
 
 | Flag | Default | Notes |
@@ -18,8 +22,8 @@ for large volumes (the docs say more than about 1M cells).
 | Method | Source types | Needs | How it splits |
 |---|---|---|---|
 | `None` | any | – | Single stream |
-| `Physical` (1.0+) | PostgreSQL, Oracle, SQL Server, Netezza (table below) | `--sourceschema`, `--sourcetable` (not on Netezza) | Physical row location of the source engine; the strategy is picked from the connection type |
-| `Ntile` | any | key | Even buckets with NTILE; the key can be numeric, date, datetime or string. Rows whose key is NULL go to a chunk of their own |
+| `Physical` (1.0+) | PostgreSQL, Oracle, SQL Server, Netezza; 1.1+: SQL Server and Oracle RMAN backups (table below) | `--sourceschema`, `--sourcetable` (not on Netezza) | Physical row location of the source engine; the strategy is picked from the connection type |
+| `Ntile` | any | key | Even buckets with NTILE; the key can be numeric, date, datetime or string. Rows whose key is NULL go to a chunk of their own. On an Oracle or MySQL source, use 1.1+ (see troubleshooting.md) |
 | `RangeId` | any | numeric key | Ranges between MIN and MAX; best on an identity / sequence without gaps |
 | `DataDriven` | any | key | One chunk per distinct value of the key (NULL is one of them), or per row of `--datadrivenquery`. More values than threads are queued |
 | `Random` | any | numeric key | Modulo on the key |
@@ -30,7 +34,9 @@ for large volumes (the docs say more than about 1M cells).
 `RangeId` and `Random` never match a NULL key (a range or a modulo is not true for NULL): use them on a
 key without NULLs, or use `Ntile` / `DataDriven`.
 
-Every method works with the `adbc_*` types (1.0+), within the source lists above.
+Every method works with the `adbc_*` types (1.0+), within the source lists above. A backup source
+(`backup_mssql`, `backup_rman`, 1.1+) only takes `None` and `Physical`: a backup has no SQL engine to
+run a split query, and any other method stops the run.
 
 ## Physical (1.0+)
 
@@ -39,9 +45,10 @@ One value for the physical-location split. FastTransfer resolves it from `--sour
 | Source connection type | Resolved to | Notes |
 |---|---|---|
 | `pgsql`, `pgcopy`, `adbc_pgsql` | `Ctid` | CTID ranges. Recommended for PostgreSQL |
-| `oraodp`, `adbc_oracle` | `Rowid` | ROWID slices |
+| `oraodp`, `adbc_oracle` | `Rowid` | ROWID slices, built from the catalog: the source user needs `SELECT_CATALOG_ROLE`, or the run fails after the target was truncated |
 | `mssql`, `msoledbsql`, `adbc_mssql` | `Physloc` | `%%physloc%%`, rowstore and clustered columnstore tables. **Only on read-only tables, databases or snapshots**: physical locations may change during writes |
-| `nzsql`, `nzbulk`, `nzoledb`, `adbc_netezza` | `NZDataSlice` | Netezza data slices |
+| `nzsql`, `nzbulk`, `nzoledb`, `adbc_netezza` | `NZDataSlice` | Netezza data slices. With a `--query`: not tested against a real database in 1.1.0 |
+| `backup_mssql`, `backup_rman` (1.1+) | `Pages` | The backup driver splits the table into one slice per stream: pages of a rowstore, rowgroups of a columnstore, ranges of the Oracle blocks. A `--query` can only select columns of the table (connections.md) |
 | anything else | refused | Error: `Physical method is not supported for source connection type …`; for `odbc` / `oledb`: `Physical method cannot identify the source engine behind connection type …` |
 
 - No `--distributekeycolumn`.
@@ -114,7 +121,7 @@ specified as sorted…"*); heap and clustered columnstore targets still get it. 
 
 1. A natively partitioned table with partitions of similar size: `DBPartition` (0.18+).
 2. `Physical` (1.0+) when the source is PostgreSQL, Oracle or Netezza, or SQL Server on read-only data:
-   no key to pick.
+   no key to pick. It is also the only parallel method of a backup source (1.1+).
 3. Otherwise `Ntile` on a key (even chunks), or `RangeId` on a dense numeric key.
 4. `Timepartition` (0.18+) when a date column gives a natural year / month / day split.
 5. `DataDriven` when a natural grouping exists (year, month, region, partition function), or for
@@ -133,6 +140,7 @@ On 0.17 and older, also replace `DBPartition` with `DataDriven` on the partition
 --parallelmethod DataDriven --distributekeycolumn "YEAR(o_orderdate)"
 --parallelmethod DataDriven --distributekeycolumn "o_ordermonth" --datadrivenquery "SELECT DISTINCT o_ordermonth FROM dim_month"
 --parallelmethod Physical                                                # Netezza: no schema / table needed
+--parallelmethod Physical --sourceschema "dbo" --sourcetable "orders" --degree 8   # backup_mssql / backup_rman (1.1+)
 --parallelmethod DataDriven --distributekeycolumn "DATASLICEID"          # Netezza alternative
 --parallelmethod DBPartition --sourceschema "dbo" --sourcetable "lineitem_part" --degree 8
 --parallelmethod Timepartition --distributekeycolumn "(l_shipdate,year,month)" --degree 8

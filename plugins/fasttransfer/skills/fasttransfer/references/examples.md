@@ -1,6 +1,6 @@
 # FastTransfer – Examples
 
-These are adapted from the official docs and the README shipped with FastTransfer 1.0, with canonical
+These are adapted from the official docs and the README shipped with FastTransfer 1.1, with canonical
 long flags. On 0.18 and older, replace `Physical` with the engine name given in each title. Credentials such as
 `FastUser` / `FastPassword` are doc placeholders. In real commands use trusted auth or shell variables
 (see SKILL.md, "Secrets").
@@ -96,7 +96,7 @@ long flags. On 0.18 and older, replace `Physical` with the engine name given in 
 ## PostgreSQL → Oracle through ADBC, Physical (Ctid) (PowerShell, 1.0+)
 
 The native pair (`pgsql` / `pgcopy` → `orabulk`) fails when the source table has a `date` column, as
-`orders` does (troubleshooting.md, "Known limitations in 1.0"): this transfer uses `adbc_*` on both ends.
+`orders` does (troubleshooting.md, "Known limitations in 1.1"): this transfer uses `adbc_*` on both ends.
 The Oracle names are in their stored case.
 
 ```powershell
@@ -368,6 +368,77 @@ or `/` must be percent-encoded. `ORA_URI` and `PG_URI` are shell variables set b
   --loadmode "Truncate" \
   --parallelmethod "Physical" \
   --degree 4
+```
+
+## Oracle → SQL Server, target table created by FastTransfer (PowerShell, 1.1+)
+
+`--loadmode Create` creates `stg.ORDERS` when it does not exist (the schema `stg` must exist), and
+truncates it when it does. `--inferdatatype best` scans the Oracle table once to pick strict types
+(`INT`, `DECIMAL(p,s)`, `DATE`) in place of floats and timestamps.
+
+```powershell
+.\FastTransfer.exe `
+  --sourceconnectiontype "oraodp" `
+  --sourceserver "orahost:1521/ORCLPDB1" `
+  --sourceuser "SALES" `
+  --sourcepassword "mypassword" `
+  --sourceschema "SALES" `
+  --sourcetable "ORDERS" `
+  --targetconnectiontype "msbulk" `
+  --targetserver "localhost" `
+  --targettrusted `
+  --targetdatabase "dwh" `
+  --targetschema "stg" `
+  --targettable "ORDERS" `
+  --loadmode "Create" `
+  --inferdatatype "best"
+```
+
+## SQL Server backup files → PostgreSQL, Physical (Linux, 1.1+)
+
+The full backup and its differentials are read from `/backup/mssql`, without SQL Server; the latest
+version of `dbo.orders` they hold is loaded. A backup source needs an `adbc_*` target, and `Physical`
+gives each of the 8 streams one slice of the table.
+
+```bash
+./FastTransfer \
+  --sourceconnectiontype "backup_mssql" \
+  --sourceserver "/backup/mssql" \
+  --sourcedatabase "tpch_full.bak;tpch_diff_*.bak" \
+  --sourceschema "dbo" \
+  --sourcetable "orders" \
+  --targetconnectiontype "adbc_pgsql" \
+  --targetserver "localhost:5432" \
+  --targetdatabase "tpch" \
+  --targetuser "postgres" \
+  --targetpassword "mypassword" \
+  --targetschema "public" \
+  --targettable "orders" \
+  --loadmode "Truncate" \
+  --parallelmethod "Physical" \
+  --degree 8
+```
+
+## Oracle RMAN backup sets → SQL Server, Physical (PowerShell, 1.1+)
+
+`--sourcedatabase` names the level 0 directory and, with `**`, every file under the level 1 directory.
+
+```powershell
+.\FastTransfer.exe `
+  --sourceconnectiontype "backup_rman" `
+  --sourceserver "D:\RMAN" `
+  --sourcedatabase "l0;l1/**" `
+  --sourceschema "TPCH" `
+  --sourcetable "ORDERS" `
+  --targetconnectiontype "adbc_mssql" `
+  --targetserver "localhost" `
+  --targettrusted `
+  --targetdatabase "tpch" `
+  --targetschema "dbo" `
+  --targettable "orders" `
+  --loadmode "Truncate" `
+  --parallelmethod "Physical" `
+  --degree 8
 ```
 
 ## Docker: CSV files → SQL Server

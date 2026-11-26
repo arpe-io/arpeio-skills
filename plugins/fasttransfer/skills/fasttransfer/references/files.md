@@ -12,7 +12,9 @@ FastTransfer reads files through its embedded DuckDB engine. The source is an in
 - `duckdbstream` streams the rows, so memory stays low. `:memory:` doesn't mean the file is loaded into
   memory.
 - Use `--mapmethod "Name"` for file imports, so columns are matched to the target by name.
-- The target table must already exist, and the target is a native type (`msbulk`, `pgcopy`…): the
+- The target table must already exist, or be created by `--loadmode Create` (1.1+; with
+  `--inferdatatype best` the files are profiled to pick the column types, see parameters.md).
+- The target is a native type (`msbulk`, `pgcopy`…): the
   `adbc_*` targets only accept an `adbc_*` source, so not `duckdbstream`. Files therefore cannot be
   loaded into Db2 (whose only target type is `adbc_db2`) in one run.
 - The query uses **DuckDB SQL**, whatever the target engine. That includes `--distributekeycolumn`
@@ -99,5 +101,5 @@ inside a DuckDB string is doubled (`''`).
 
 ## Cloud storage
 
-FastTransfer 1.0 documents no cloud source or target (no `s3://`, `az://`, `gs://` usage). Don't generate
+FastTransfer 1.1 documents no cloud source or target (no `s3://`, `az://`, `gs://` usage). Don't generate
 cloud URIs for FastTransfer. Download the files first, or use FastBCP to export to cloud storage.

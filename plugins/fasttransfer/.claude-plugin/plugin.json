@@ -1,7 +1,7 @@
 {
   "name": "fasttransfer",
-  "version": "1.0.0",
-  "description": "Build, explain and troubleshoot FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2 and DuckDB, natively or through the bundled arpe.io ADBC drivers, and CSV/Parquet/JSON file imports.",
+  "version": "1.1.1",
+  "description": "Build, explain and troubleshoot FastTransfer commands: parallel bulk transfer between SQL Server, PostgreSQL, Oracle, MySQL, ClickHouse, SAP HANA, Teradata, Netezza, IBM Db2 and DuckDB, natively or through the bundled arpe.io ADBC drivers, SQL Server and Oracle RMAN backups read without restoring them, CSV/Parquet/JSON file imports, and target table creation.",
   "author": {
     "name": "arpe.io",
     "url": "https://www.arpe.io"
@@ -11,5 +11,5 @@
   "license": "MIT",
   "termsOfServiceUrl": "https://github.com/arpe-io/arpeio-skills/blob/main/LICENSE",
   "icon": "./assets/icon.png",
-  "keywords": ["fasttransfer", "transfer", "migration", "bulk", "etl", "csv", "parquet", "adbc", "db2"]
+  "keywords": ["fasttransfer", "transfer", "migration", "bulk", "etl", "csv", "parquet", "adbc", "db2", "backup"]
 }
