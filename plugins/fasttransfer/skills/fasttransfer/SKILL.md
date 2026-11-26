@@ -12,7 +12,7 @@ FastTransfer reads a table or query from a **source** and bulk loads it into a *
 Goal: produce **one correct, copy-pasteable command** for the user's OS and shell, built only from
 documented parameters. Never invent hosts, credentials, table or column names, or paths: ask.
 
-Facts below reflect FastTransfer **1.1.0**. Detailed references (load only what you need):
+Facts below reflect FastTransfer **1.1.1**. Detailed references (load only what you need):
 
 | Need | File |
 |---|---|
@@ -35,7 +35,10 @@ When you can run commands, run `./FastTransfer --version` (Windows: `.\FastTrans
 before building a command; otherwise ask for the version when it matters (a rejected flag, an unexpected
 error).
 
-- **1.1** → use this skill as is.
+- **1.1** → use this skill as is. 1.1.1 changes no flag; it bundles newer drivers (troubleshooting.md,
+  version notes). On 1.1.0: `adbc_db2` refuses a database with a single-byte code page (CCSID 923, 850,
+  1252, 5348), and `backup_mssql` has no `ARPEMSBACKUP_DIRECT_IO` / `ARPEMSBACKUP_SINGLE_PASS`.
+  Recommend 1.1.1.
 - **1.0** → no `--loadmode Create` and no `--inferdatatype`: the target table must exist, and
   `--loadmode Replace` behaves like `Append` there. No `backup_mssql` / `backup_rman` sources. No
   `FASTTRANSFER_ADBC_SSLMODE`: put the driver's `sslmode` in the connection string. With the native SQL
@@ -152,6 +155,9 @@ keep `Physloc`). Then set `--degree` (default `-4` = cores/4; `0` = all cores; `
   used (1.1+). `Create` needs the target schema to exist, creates a table with the source column names,
   every column nullable, no key, index or constraint, and **truncates the table when it already
   exists**. Before 1.1 FastTransfer never creates a table: tell the user to create it first.
+- **`Create` from SQL Server to SQL Server**: with `msbulk`, the load fails when the two databases'
+  collations have different locales (the created text columns take the target's collation). When they
+  may differ, write `adbc_mssql` on both ends (troubleshooting.md, "Creating the target table").
 - **Never generate `--loadmode Replace`.** Since 1.1 it is an alias of `Create` (it creates the target,
   or **truncates** it); up to 1.0 it behaved like `Append`. Write `Append`, `Truncate` or `Create`, and
   warn a user whose scripts pass `Replace` before they upgrade.
@@ -168,6 +174,8 @@ keep `Physloc`). Then set `--degree` (default `-4` = cores/4; `0` = all cores; `
   SQL Server (`mssql`, `msoledbsql`, `adbc_mssql`; only on data that is not being written) and Netezza
   (`nzsql`, `nzbulk`, `nzoledb`, `adbc_netezza`) sources, and with the backup sources (1.1+). Any other
   source is refused: use a key-based method.
+- `Physical` on an Oracle source needs `SELECT_CATALOG_ROLE` for the source user; without it the run
+  fails **after** truncating the target. When the role is unknown, say so, or use a key-based method.
 - `DBPartition` requires `--sourceschema` + `--sourcetable`; `--query` / `--fileinput` are not allowed. On a
   non-partitioned table or an unsupported source it falls back to `None` with a warning.
 - **`adbc_*`**: never mix with a native type (refused before anything runs); Windows x64 and Linux x64

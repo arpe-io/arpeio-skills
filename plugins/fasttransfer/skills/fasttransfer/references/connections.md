@@ -175,6 +175,9 @@ The drivers need an **ARPE ADBC DRIVER** licence block, in addition to the FastT
 | Timeout | None by default. `FASTTRANSFER_LOADSTEPTIMEOUT_MINUTES`, when set, becomes the drivers' timeout on both ends; a timeout already in the connection string is kept |
 | TLS (`adbc_pgsql`, `adbc_netezza`) | Negotiated by default. `FASTTRANSFER_ADBC_SSLMODE` (1.1+) sets the drivers' `sslmode`, see below |
 | Parallel load into `adbc_db2` (1.1+) | Each stream commits every 50,000 rows. An `adbc.arpedb2.ingest.commit_interval_rows` already in the connection string is kept |
+| `adbc_db2` load request size (1.1.1+) | ArpeDb2 0.4.4 sends up to 32,767 rows per request (`adbc.arpedb2.bulk.chunk_rows`, 1,000 before), so the driver's 1 MiB request limit sets the size: about 25% faster ingest. `adbc.arpedb2.bulk.chunk_rows=1000` in the connection string restores the previous size |
+| `adbc_db2` database code page (1.1.1+) | A Db2 LUW database created with a single-byte code set is read and written: CCSID 923 (ISO-8859-15), 850, 1252 and 5348, converted to and from UTF-8 (ArpeDb2 0.4.4). 1.1.0 refuses it: *column … VARCHAR has CCSID 923, which this driver cannot decode*. Any other non-Unicode CCSID is still refused, naming the column |
+| Oracle server warnings (1.1.1+) | ArpeOracle 0.4.9 reports the warnings the server sends (password in its grace period ORA-28002, `CREATE` compiled with errors ORA-24344…); they appear in FastTransfer's log like the other driver messages |
 | Driver messages | In FastTransfer's log (all sinks), labelled with the connection type, e.g. `WARN adbc_db2 driver: …`; a repeated message goes to Debug. `arpeio.adbc.warnings_to_stderr=true` in the connection string also prints the raw output on stderr |
 
 ### TLS for PostgreSQL and Netezza (1.1+)
@@ -290,9 +293,14 @@ backup); the next reads reuse it and start at once.
 - FastTransfer warns when the directory cannot be written (`Backup index not saved: …`): every run then
   indexes the backup again. Set `FASTTRANSFER_INDEX_DIR` to a writable directory (typical for a service
   account with no usable home directory).
-- `backup_mssql`: when a backup is indexed, the block table of each compressed backup file is read by
-  several threads. The driver option `adbc.arpemsbackup.index_threads_per_backup_file` in
-  `--sourceconnectstring` sets how many: 2 by default, from 1 to 16.
+- `backup_mssql` with 1.1.1 (ArpeMSBackup 0.5.0): the backup is indexed with unbuffered reads, and a
+  compressed backup in one pass, block tables and pages together (a 36 GB compressed backup in 6 stripes
+  was indexed in 5.5 s). Two environment variables of the driver go back to the 1.1.0 behaviour:
+  `ARPEMSBACKUP_DIRECT_IO=0` reads through the file cache, `ARPEMSBACKUP_SINGLE_PASS=0` indexes in two
+  passes.
+- `adbc.arpemsbackup.index_threads_per_backup_file` (in `--sourceconnectstring`, 2 by default, from 1
+  to 16) sets how many threads read the block table of each compressed backup file. In 1.1.1 it only
+  applies with `ARPEMSBACKUP_SINGLE_PASS=0`.
 
 ### Driver options in a connection string
 
@@ -305,7 +313,8 @@ driver's own options separated by `;`:
 
 `path` is the directory (`--sourceserver`), `file` the file names or patterns (`--sourcedatabase`);
 `certificate` and `certificate_password` stand for `--sourceuser` / `--sourcepassword`, and `index_dir`
-for `FASTTRANSFER_INDEX_DIR`. Prefer the usual flags when no driver option is needed.
+for `FASTTRANSFER_INDEX_DIR`. Prefer the usual flags when no driver option is needed. With 1.1.1 the
+thread count of this example only takes effect with `ARPEMSBACKUP_SINGLE_PASS=0` (see above).
 
 ### Limits
 

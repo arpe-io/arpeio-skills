@@ -87,6 +87,9 @@
 | "FASTTRANSFER_ADBC_SSLMODE='…' is not a valid sslmode" | Use one of `disable`, `prefer`, `require`, `verify-ca`, `verify-full`. The run stopped before connecting |
 | Time zone offsets differ from the source (SQL Server `datetimeoffset`, Oracle `TIMESTAMP WITH TIME ZONE`, Teradata) | They arrive as the same instant in UTC (`+00:00`) |
 | Driver warnings no longer on stderr | They go to FastTransfer's log. Add `arpeio.adbc.warnings_to_stderr=true` to the connection string to also get the raw output |
+| `adbc_db2` source or target: *column … has CCSID 923, which this driver cannot decode* (also 850, 1252, 5348) | The Db2 database uses a single-byte code page. Upgrade to 1.1.1 (ArpeDb2 0.4.4), which converts these four. Another CCSID is still refused |
+| `adbc_db2`: *DRDA connect failed: login timed out after 30 s (adbc.arpedb2.login_timeout)*, now and then, on a server that answers | The database is not activated: Db2 shuts it down when its last connection closes, and the next connection waits for it to start again (seen between two runs, and between FastTransfer's planning connection and the next one). Have the DBA run `db2 activate db <name>` (it stays active until `db2stop` or `db2 deactivate db`) |
+| New `WARN adbc_oracle driver: warning: ORA-28002 …` (or ORA-24344) lines in the log after an upgrade to 1.1.1 | ArpeOracle 0.4.9 reports the server's warnings, which 1.1.0 dropped. The run is not affected; ORA-28002 means the password expires soon |
 
 ## Creating the target table (`--loadmode Create`, 1.1+)
 
@@ -100,6 +103,7 @@
 | "A row of the source does not fit a type inferred by --inferdatatype best…" | A row written after the scan, or missed by a sample. The table created by that run was dropped: run again with a full scan (unset `FASTTRANSFER_INFER_SAMPLE_PERCENT`) or with `--inferdatatype fast` |
 | "Infer Data Type best : the profiling of the source failed…" | Nothing was created. Run again with `--inferdatatype fast` to skip the profiling |
 | A failed run leaves the new table empty or partly loaded | Expected. The next run finds it, truncates it and loads it |
+| SQL Server to SQL Server (`mssql` → `msbulk`): the table is created, then *The locale id '1033' of the source column '…' and the locale id '1036' of the destination column '…' do not match* | The created text columns take the target database's collation, and its locale differs from the source column's. Use `adbc_mssql` on both ends (the load works, the columns keep the target's collation), or create the table with the source collation on its text columns (`COLLATE SQL_Latin1_General_CP1_CI_AS`…) and load with `--loadmode Truncate`. Drop the empty table the failed run left first |
 | A later `--loadmode Append` fails on larger values (table created with `best`) | The types fit the data read at creation time. Widen the columns, or create the table with `FASTTRANSFER_INFER_STRING_MARGIN` |
 | "--inferdatatype allvarchar needs a source whose engine is known…" | Not available with a generic `odbc` or `oledb` source: use a native or `adbc_*` source type |
 | "The select list of the query (-q / -f) cannot be rewritten for the … method…" | With `Physical` and `allvarchar` / `best`, the query must be a single `SELECT` listing its columns, or `SELECT *` on one table. Or give `--sourceschema` + `--sourcetable` without a query |
@@ -154,6 +158,12 @@
     above the 65,535-byte row limit is refused;
   - a DuckDB target refuses a `time` value; `mysqlbulk` refuses a `YEAR` target column;
   - `adbc_oracle` reads the date 0001-01-01 as 0000-12-30.
+- **`--loadmode Create` from SQL Server to SQL Server with `msbulk`** between databases whose collations
+  have different locales: the load fails after the table is created (see "Creating the target table"
+  above). `adbc_mssql` on both ends works.
+- **`Physical` on an Oracle source** needs `SELECT_CATALOG_ROLE`; without it the run fails after the
+  target was truncated, and the target is left empty. A backup source checks before truncating; an
+  Oracle source does not.
 - **Not tested against a real database in 1.1.0**: `--loadmode Create` with ClickHouse, Netezza or SAP
   HANA (source or target), with Teradata as a target, and with the backup sources; `NZDataSlice`
   (`Physical` on Netezza) with a `--query`. Test on a sample first, and say so to the user.
@@ -215,3 +225,13 @@ The docs were corrected to match these, but older copies (and other sites) may s
   Bundled drivers: ArpeMSSQL 0.8.4, ArpePGSQL 0.5.6, ArpeOracle 0.4.8, ArpeNetezza 0.3.12, ArpeDb2
   0.4.3, ArpeTeradata 0.3.8, ArpeMSBackup 0.4.1 (`adbc.arpemsbackup.index_threads_per_backup_file`),
   ArpeOraBackup 0.3.1.
+- **1.1.1**: no CLI change; three bundled drivers updated. ArpeMSBackup 0.5.0: unbuffered reads to index
+  a backup (`ARPEMSBACKUP_DIRECT_IO=0` goes back to the file cache) and one indexing pass for a
+  compressed backup (`index_threads_per_backup_file` only with `ARPEMSBACKUP_SINGLE_PASS=0`). ArpeDb2
+  0.4.4: databases in CCSID 923, 850, 1252 and 5348 read and written; bulk ingest about 25% faster
+  (`adbc.arpedb2.bulk.chunk_rows` 32,767 by default instead of 1,000); a chunk above 2,114 rows no
+  longer loses its other rows; reads use less memory and client CPU. ArpeOracle 0.4.9: server warnings
+  reported in the log; AES-128 / AES-192 and SHA-384 / SHA-512 for native network encryption; a
+  `NUMBER` holding infinity reads as `Infinity` / `+inf` instead of failing the query (a decimal or
+  integer target refuses it). Bundled drivers: ArpeMSSQL 0.8.4, ArpePGSQL 0.5.6, ArpeOracle 0.4.9,
+  ArpeNetezza 0.3.12, ArpeDb2 0.4.4, ArpeTeradata 0.3.8, ArpeMSBackup 0.5.0, ArpeOraBackup 0.3.1.

@@ -102,7 +102,7 @@ and to confirm against the official docs when the installed product is newer.
 | Skill | Product version |
 |---|---|
 | `fastbcp` | FastBCP 1.7.0 |
-| `fasttransfer` | FastTransfer 1.1.0 |
+| `fasttransfer` | FastTransfer 1.1.1 |
 | `migratorxpress` | MigratorXpress 0.8.0 |
 | `lakexpress` | LakeXpress 0.6.8 |
 | `arpeio-adbc-drivers` | ArpeMSSQL 0.8.0, ArpePGSQL 0.5.2, ArpeOracle 0.4.5, ArpeNetezza 0.3.9, ArpeTeradata 0.3.6, ArpeDb2 0.4.0 |

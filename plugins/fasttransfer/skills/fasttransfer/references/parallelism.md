@@ -45,7 +45,7 @@ One value for the physical-location split. FastTransfer resolves it from `--sour
 | Source connection type | Resolved to | Notes |
 |---|---|---|
 | `pgsql`, `pgcopy`, `adbc_pgsql` | `Ctid` | CTID ranges. Recommended for PostgreSQL |
-| `oraodp`, `adbc_oracle` | `Rowid` | ROWID slices |
+| `oraodp`, `adbc_oracle` | `Rowid` | ROWID slices, built from the catalog: the source user needs `SELECT_CATALOG_ROLE`, or the run fails after the target was truncated |
 | `mssql`, `msoledbsql`, `adbc_mssql` | `Physloc` | `%%physloc%%`, rowstore and clustered columnstore tables. **Only on read-only tables, databases or snapshots**: physical locations may change during writes |
 | `nzsql`, `nzbulk`, `nzoledb`, `adbc_netezza` | `NZDataSlice` | Netezza data slices. With a `--query`: not tested against a real database in 1.1.0 |
 | `backup_mssql`, `backup_rman` (1.1+) | `Pages` | The backup driver splits the table into one slice per stream: pages of a rowstore, rowgroups of a columnstore, ranges of the Oracle blocks. A `--query` can only select columns of the table (connections.md) |
