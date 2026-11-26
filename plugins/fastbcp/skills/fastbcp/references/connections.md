@@ -134,12 +134,17 @@ Per-driver notes:
   TCPS verifies the server certificate by default; Kerberos forwards the TGT only with
   `krb5_forward=true` and requires mutual authentication; token and OAuth2 logons require TCPS.
   Since 1.5 (ArpeOracle 0.4.3), `adbc.arpeoracle.data_integrity_types` chooses the Native Network
-  Encryption integrity algorithm.
+  Encryption integrity algorithm. Since 1.7.1 (ArpeOracle 0.4.9): Native Network Encryption also negotiates
+  AES-128 / AES-192 and SHA-384 / SHA-512, so a server that allows only one of them connects instead of failing
+  with ORA-12650; a `NUMBER` holding infinity no longer fails the query; **the driver's `auth_method=token` /
+  `oauth2` logons refuse TLS that does not verify the server certificate**.
 - **adbc_mssql**: an `ApplicationIntent` key in the connection string is passed to the driver.
   Supports up to 1024 columns (since 1.2). Reads `sql_variant` and the SQL Server 2025 `JSON` type
   since 1.4 (ArpeMSSQL 0.7.6). Since 1.5 (ArpeMSSQL 0.7.8), parallel connections are opened 50 ms apart
   so SQL Server spreads them over its schedulers (4-way parallel reads up to twice as fast);
-  `ARPEMSSQL_CONNECT_SPACING_MS` changes the gap.
+  `ARPEMSSQL_CONNECT_SPACING_MS` changes the gap. Since 1.7.1 (ArpeMSSQL 0.8.4): the server version in the log
+  names the build, the year, the CU and the edition; the `[TDS TIMING]` line on stderr is shown only with
+  `ARPEIO_ADBC_WRITE_TIMING=1`; a logon refused by the server is reported as an authentication error.
 - **adbc_teradata** (1.4+): same SQL dialect as `teradata`. Since 1.5 (ArpeTeradata 0.3.5), a `uri` or
   ADO.NET `connection_string` key is parsed, like the other drivers.
   - Connect with `--server "host[:port]"` (legacy port, default `1025`), `--user`, `--password`, optional
@@ -160,7 +165,7 @@ Per-driver notes:
 
 ## IBM Db2 (`adbc_db2`, 1.7+)
 
-`--connectiontype adbc_db2` reads Db2 through the embedded **ArpeDb2** ADBC driver (ArpeDb2 0.4.0 in 1.7.0), for the
+`--connectiontype adbc_db2` reads Db2 through the embedded **ArpeDb2** ADBC driver (ArpeDb2 0.4.0 in 1.7.0, 0.4.4 in 1.7.1), for the
 metadata and the data steps. It speaks Db2's native protocol: **no IBM client software** (Data Server Driver, CLI,
 ODBC) to install, the same command on Windows and Linux. Db2 SQL dialect.
 
@@ -182,6 +187,9 @@ ODBC) to install, the same command on Windows and Linux. Db2 SQL dialect.
 - Parallel methods: `None`, `Random`, `DataDriven`, `RangeId`, `Ntile`, `Timepartition`, and `DBPartition` on Db2 for
   LUW range-partitioned tables (one data partition per thread, see parallelism.md). **Not `Physical`**: use `Ntile`,
   `RangeId`, `Random` or `DBPartition`.
+- Database code page: a Db2 LUW database created with a single-byte code set is read since 1.7.1 (ArpeDb2 0.4.4):
+  CCSID 923 (ISO-8859-15), 850 and 1252 / 5348 (windows-1252), converted to UTF-8. 1.7.0 refuses it (`column … has
+  CCSID 923, which this driver cannot decode`); any other non-Unicode CCSID is still refused, naming the column.
 - Data types: `DECIMAL(p,s)` keeps its precision and scale; `DECFLOAT` reads as a double unless
   `adbc.arpedb2.decfloat_as=string`. Full mapping: https://adbc-drivers-docs.arpe.io/drivers/arpedb2/data-types
 - The driver needs the ADBC block of the license file, like the other `adbc_*` (environment.md, "License").
@@ -264,6 +272,11 @@ backups much larger than the RAM work.
   index file, so the next exports open in milliseconds. It is on by default, for `backup_rman` too (1.6.4+).
   Directory: the local application data of the user, or `FASTBCP_INDEX_DIR` (1.6.6+) for an account without
   a usable home. A warning says when the index cannot be saved; the export still runs.
+- Since 1.7.1 (ArpeMSBackup 0.5.0), a compressed backup is indexed in one pass instead of two (block tables and
+  pages together), with unbuffered reads (`FILE_FLAG_NO_BUFFERING` / `O_DIRECT`), which helps most on a server
+  whose memory is in use; `ARPEMSBACKUP_DIRECT_IO=0` goes back to the file cache. The data is also read faster
+  (`orders_page`, 15M rows, PAGE + ZSTD, `-m Physical -p 4`, index saved: 1.75 s against 2.35 s with 1.7.0). An
+  index saved by 1.7.0 is still reused.
 
 ### Differential backups (1.6.7+)
 

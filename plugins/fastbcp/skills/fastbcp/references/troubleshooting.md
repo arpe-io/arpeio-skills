@@ -46,6 +46,11 @@
 | `adbc_db2` on Db2 for z/OS, on Linux ARM64, or with CSV output | Not supported: Db2 for LUW (and Db2 for i, for queries), Windows x64 / Linux x64, Parquet only. Use `odbc` with IBM's ODBC / CLI driver |
 | `adbc_db2` TLS connection fails | Db2's TLS is implicit, on the server's SSL port (often `50001`), off by default: give that port and `SSL Mode=verify-full;SSL Root Cert=<ca.pem>` in `--sourceconnectstring` |
 | `--connectiontype adbc_db2` refused (1.6 and older) | `adbc_db2` needs 1.7. Upgrade, or use `odbc` with IBM's driver |
+| `adbc_db2`: `column … VARCHAR has CCSID 923, which this driver cannot decode` (also 850, 1252, 5348; 1.7.0) | The Db2 database uses a single-byte code page. Upgrade to 1.7.1 (ArpeDb2 0.4.4), which converts these to UTF-8. Another CCSID is still refused, naming the column |
+| `adbc_db2`: `DRDA connect failed: login timed out after 30 s (adbc.arpedb2.login_timeout)` now and then, on a server that answers | The Db2 database is not activated: Db2 shuts it down when its last connection closes, and the next connection waits for it to start again. Have the DBA run `db2 activate db <name>` |
+| `adbc_oracle`: ORA-12650 on a server that requires native network encryption (1.7.0 and older) | The server allows only AES-128 / AES-192 or SHA-384 / SHA-512, which the driver did not offer. Upgrade to 1.7.1 (ArpeOracle 0.4.9) |
+| `adbc_oracle` token or OAuth2 logon refused after an upgrade to 1.7.1 | Since ArpeOracle 0.4.6 (bundled from 1.7.1), `auth_method=token` / `oauth2` refuse TLS that does not verify the server certificate. Use TCPS with a server certificate the client can verify |
+| The `[TDS TIMING]` line of `adbc_mssql` is gone from stderr (1.7.1) | ArpeMSSQL 0.8.4 prints it only with `ARPEIO_ADBC_WRITE_TIMING=1` |
 | `DECIMAL` values multiplied by 10^scale (`173665.47` → `17366547`), `odbc` + IBM's Db2 ODBC driver on a Windows with a decimal comma (1.6 and older) | Fixed in 1.7: FastBCP adds `Patch2=15` itself (the `Patch2` values given are kept, the list is logged); nothing to change in the command. Upgrade, and export those tables again. Other ODBC drivers and `adbc_db2` were not affected |
 | A Db2 `--query` with `CURRENT DATE`, `CURRENT TIMESTAMP(6)` or `CURRENT DATE - 30 DAYS` fails to parse (1.6 and older) | Db2 special registers and labeled durations parse since 1.7 (`adbc_db2`, and `odbc` on a Db2 server). Upgrade |
 | An Oracle `--query` with `#` or `\` returns other rows, or none, without an error (1.6 and older) | The end of the line after `#` was dropped and `\t` in a string became a tab. Fixed in 1.7 (`oraodp`, `adbc_oracle`, `odbc` on an Oracle server): upgrade and check the exports whose `--query` holds `#` or `\` |
@@ -167,6 +172,19 @@ https://fastbcp-docs.arpe.io/latest/datatypes-conversion/overview
 - **1.6.5**: `backup_mssql` writes the same Parquet as `adbc_mssql` (`geography`, `geometry`, `vector`,
   `time(7)`, `sql_variant` change: check the pipelines reading them); far less memory on wide clustered
   columnstore tables; `json` and `vector(n, float16)` refused; `FASTBCP_UID_STRING_CASING` applies.
+- **1.7.1**: FastBCP's own code unchanged; every ADBC driver updated. `backup_mssql` (ArpeMSBackup 0.5.0): a
+  compressed backup indexed in one pass with unbuffered reads (`ARPEMSBACKUP_DIRECT_IO=0` goes back to the file
+  cache), data read faster, an index saved by 1.7.0 still reused. `adbc_mssql` (ArpeMSSQL 0.8.4): full server
+  version in the log, `[TDS TIMING]` on stderr only with `ARPEIO_ADBC_WRITE_TIMING=1`, a refused logon reported as an
+  authentication error. `adbc_oracle` (ArpeOracle 0.4.9): AES-128 / AES-192 and SHA-384 / SHA-512 negotiated (no
+  more ORA-12650 against a server restricted to them), a `NUMBER` holding infinity no longer fails the query;
+  **behaviour change: `auth_method=token` / `oauth2` refuse TLS that does not verify the server certificate**.
+  `adbc_db2` (ArpeDb2 0.4.4): databases with a single-byte code page (ISO-8859-15, 850, windows-1252) read.
+  `adbc_netezza` metadata step (Adbc.AdoNet 0.1.2): a `timestamp` / `date` outside the range of `DateTime` throws an
+  `OverflowException` naming the value instead of wrapping round. ArpePGSQL 0.5.6, ArpeNetezza 0.3.12, ArpeTeradata
+  0.3.8: warnings can be collected through ADBC options (default unchanged: stderr). Drivers: ArpeMSSQL 0.8.4,
+  ArpePGSQL 0.5.6, ArpeOracle 0.4.9, ArpeNetezza 0.3.12, ArpeTeradata 0.3.8, ArpeDb2 0.4.4, ArpeMSBackup 0.5.0,
+  ArpeOraBackup 0.3.1.
 - **1.7.0**: `adbc_db2` (IBM Db2 to Parquet through the embedded ArpeDb2 driver, no IBM client; Db2 for LUW, Db2
   for i for queries) and `DBPartition` on Db2 for LUW range-partitioned tables; Db2 and Oracle SQL rules when
   FastBCP reads `--query` (**an Oracle `--query` with `#` or `\` could return other rows, or none, up to 1.6**:
